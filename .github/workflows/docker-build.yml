@@ -53,7 +53,7 @@ jobs:
             command -v tunnel-client
             command -v mcp-proxy-for-aws-cli
             python -c "import mcp_proxy_for_aws"
-            python -c "import boto3, awscrt; from importlib.metadata import version; assert tuple(map(int, version('boto3').split('.')[:2])) >= (1, 41), version('boto3'); print('boto3 and AWS CRT available:', version('boto3'))"
+            python -c "import boto3, awscrt; print(boto3.__version__); assert tuple(map(int, boto3.__version__.split(chr(46))[:2])) >= (1, 41)"
             tunnel-client --version
             python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
           '
