@@ -134,6 +134,17 @@ This mounts the host bundle read-only and sets `SSL_CERT_FILE` for Go's `tunnel-
 
 If the issue remains, inspect proxy environment configuration, certificate chain, DNS, and the actual TLS issuer seen **inside** the container before changing trust roots. The exact way CA trust was corrected on the first verified workstation was not recorded; this override is a documented remediation option, not a claim about the specific past action.
 
+## Optional AWS read-only MCP Tunnel
+
+A separate Docker-managed **AWS MCP Tunnel** can be added without changing
+the working Atlassian credentials or installing ChatGPT AWS plugins/apps.
+It uses an AWS IAM Identity Center SSO profile, SigV4 proxy, a distinct OpenAI
+Tunnel ID and an independent token volume. It also defaults to
+`--read-only`, with AWS IAM as the actual authorization boundary.
+
+See **[AWS setup and security walkthrough](README-AWS.md)**.
+Do not use the Atlassian `.env` for the AWS service.
+
 ## Upstream references
 
 - [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
