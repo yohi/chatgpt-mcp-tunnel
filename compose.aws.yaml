@@ -49,9 +49,10 @@ services:
       start_period: 90s
 
   aws-auth:
-    # The official AWS CLI v2 image is the only AWS login/configuration helper.
+    # AWS CLI v2 published by AWS on Docker Hub (ECR Public can rate-limit).
+    # Override AWS_CLI_IMAGE in .env.aws to use a trusted mirror.
     # Identical UID/GID and HOME let it share *only* the AWS SSO named volume.
-    image: public.ecr.aws/aws-cli/aws-cli:2.37.12
+    image: "${AWS_CLI_IMAGE:-amazon/aws-cli:2.37.12}"
     profiles:
       - aws-auth
     init: true
@@ -73,6 +74,27 @@ services:
       AWS_PAGER: ""
       AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+
+  aws-sso-init:
+    # Explicit one-shot owner repair for a named volume created by an earlier
+    # failed image pull or created before the non-root AWS runtime initialized.
+    # Only CHOWN capability is granted and only the AWS named volume is mounted.
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles:
+      - aws-init
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "chown -R 10001:10001 /home/awsuser/.aws"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - aws-sso-data:/home/awsuser/.aws
 
 volumes:
   aws-sso-data:
