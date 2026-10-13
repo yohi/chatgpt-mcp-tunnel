@@ -1,0 +1,21 @@
+name: Docker build
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        env:
+          CONTROL_PLANE_API_KEY: placeholder-ci-key
+          CONTROL_PLANE_TUNNEL_ID: tunnel_placeholder
+        run: docker compose --profile auth config --quiet
+      - name: Build image (no credentials)
+        run: docker build --pull --tag chatgpt-mcp-tunnel:ci .
