@@ -16,9 +16,10 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:rw,nosuid,nodev,size=64m
-    # Loopback-only diagnostics. AWS MCP traffic is outbound over HTTPS.
-    ports:
-      - "127.0.0.1:${AWS_HEALTH_PORT:-18081}:18081"
+    # No published health port. Detailed /health/* endpoints require a
+    # *container-internal* loopback peer; Docker port forwarding receives 403.
+    # Inspect them with "docker compose exec -T aws-tunnel python ...".
+    # AWS MCP traffic itself is outbound over HTTPS.
     volumes:
       - aws-sso-data:/home/awsuser/.aws
     environment:
@@ -32,7 +33,7 @@ services:
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
       CONTROL_PLANE_API_KEY: "${AWS_CONTROL_PLANE_API_KEY:?Set AWS_CONTROL_PLANE_API_KEY in .env.aws}"
       CONTROL_PLANE_TUNNEL_ID: "${AWS_CONTROL_PLANE_TUNNEL_ID:?Set AWS_CONTROL_PLANE_TUNNEL_ID in .env.aws}"
-      HEALTH_LISTEN_ADDR: "0.0.0.0:18081"
+      HEALTH_LISTEN_ADDR: "127.0.0.1:18081"
       MCP_COMMAND: >-
         mcp-proxy-for-aws-cli
         https://aws-mcp.${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}.api.aws/mcp
