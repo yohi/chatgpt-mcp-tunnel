@@ -49,7 +49,7 @@ jobs:
             command -v mcp-proxy-for-aws-cli
             python -c "import mcp_proxy_for_aws"
             tunnel-client --version
-            python -c 'import ast; ast.parse(open("/usr/local/bin/aws-tunnel-healthcheck.py").read())'
+            python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
           '
       - name: Ensure local-only override stays ignored
         run: |
