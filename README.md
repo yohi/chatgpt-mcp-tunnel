@@ -84,7 +84,7 @@ If `mcp-remote` needs a **fresh sign-in**, stop the tunnel and use an intentiona
 
 - The `.env` file is ignored by Git, but Compose environment variables can be inspected by Docker administrators. Do **not** commit `.env` or paste it into issue reports/logs. For a stronger secret-at-rest model, migrate the runtime key to a file-backed Docker secret and the official `--control-plane.api-key=file:...` flag.
 - OAuth refresh tokens and client registration state persist in the `oauth-data` Docker volume, **unencrypted by this project**; restrict host access and protect backups. The authentication and tunnel containers should **not** run concurrently during a new login to avoid callback port conflicts.
-- The image pins `tunnel-client` `v1.2.3` and `mcp-remote` `0.14.3` for repeatability. This is version pinning, not digest- or lockfile-level reproducibility. Review dependencies before updating.
+- The image pins the **published** `tunnel-client` `v0.0.16` (downloaded with SHA-256 validation) and `mcp-remote` `0.14.3` for repeatability. This is version pinning, not digest- or lockfile-level reproducibility. Review dependencies before updating.
 - This is a connectivity experiment. It does **not** impose read-only permissions or tool-level authorization. Atlassian tools may mutate data. Never pass long-lived IAM access keys or other unrelated secrets through MCP arguments/results.
 - `network_mode: host` exposes the health listener at `127.0.0.1:18080` on the host; it does **not** expose the MCP endpoint publicly. Use only on a trusted single-user Linux machine.
 
@@ -97,7 +97,7 @@ If `mcp-remote` needs a **fresh sign-in**, stop the tunnel and use an intentiona
 | OAuth callback is blocked | Check the organization's Atlassian Rovo MCP domain/callback allowlist; a permitted localhost redirect is required. |
 | `tunnel-client` reports missing credentials | Check `.env`, the runtime API key, and the tunnel's OpenAI workspace permission. |
 | `/healthz` works but no tools | Inspect `docker compose logs tunnel` and `/health/mcp`; check ChatGPT's Tunnel selection. |
-| Docker build fails copying `cloudflared` | The pinned official upstream image layout may have changed; verify upstream Dockerfile and pin a working image digest. |
+| Docker build cannot download OpenAI release | Check access to GitHub Release assets and the matching `SHA256SUMS.txt` entry; never bypass checksum verification. |
 
 ## Upstream references
 
