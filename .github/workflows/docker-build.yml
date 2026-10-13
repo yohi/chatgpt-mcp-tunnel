@@ -19,3 +19,17 @@ jobs:
         run: docker compose --profile auth config --quiet
       - name: Build image (no credentials)
         run: docker build --pull --tag chatgpt-mcp-tunnel:ci .
+      - name: Smoke-test image and CA trust bundle
+        run: |
+          docker run --rm --entrypoint sh chatgpt-mcp-tunnel:ci -ec '
+            test -s /etc/ssl/certs/ca-certificates.crt
+            command -v tunnel-client
+            command -v mcp-remote
+            command -v mcp-remote-client
+            tunnel-client --version
+          '
+      - name: Ensure local-only override stays ignored
+        run: |
+          printf 'services:\\n  tunnel: {}\\n' > compose.override.yaml
+          git check-ignore -q compose.override.yaml
+          ! git ls-files --error-unmatch compose.override.yaml 2>/dev/null
