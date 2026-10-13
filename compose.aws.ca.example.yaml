@@ -1,0 +1,22 @@
+# OPTIONAL: use ONLY if the host trust bundle is verified and required.
+# Apply alongside compose.aws.yaml via -f; not loaded automatically.
+# On Debian/Ubuntu the host bundle often resides here.
+services:
+  aws-tunnel:
+    volumes:
+      - type: bind
+        source: /etc/ssl/certs/ca-certificates.crt
+        target: /etc/ssl/certs/ca-certificates.crt
+        read_only: true
+    environment:
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+
+  aws-auth:
+    volumes:
+      - type: bind
+        source: /etc/ssl/certs/ca-certificates.crt
+        target: /etc/ssl/certs/ca-certificates.crt
+        read_only: true
+    environment:
+      AWS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt

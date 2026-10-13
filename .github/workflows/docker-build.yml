@@ -33,8 +33,29 @@ jobs:
             command -v mcp-remote-client
             tunnel-client --version
           '
+      - name: Validate AWS Compose files (no AWS credentials)
+        run: |
+          docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet
+          docker compose --env-file .env.aws.example -f compose.aws.yaml -f compose.aws.ca.example.yaml --profile aws-auth config --quiet
+      - name: Build AWS SigV4 proxy image
+        run: |
+          docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
+          docker build -f Dockerfile.aws --tag chatgpt-aws-mcp-tunnel:ci .
+      - name: Smoke-test AWS image (no credentials)
+        run: |
+          docker run --rm --entrypoint sh chatgpt-aws-mcp-tunnel:ci -ec '
+            test -s /etc/ssl/certs/ca-certificates.crt
+            command -v tunnel-client
+            command -v mcp-proxy-for-aws-cli
+            python -c "import mcp_proxy_for_aws"
+            tunnel-client --version
+            python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
+          '
       - name: Ensure local-only override stays ignored
         run: |
-          touch compose.override.yaml
+          touch compose.override.yaml .env.aws
           git check-ignore -q compose.override.yaml
+          git check-ignore -q .env.aws
+          git check-ignore -q .env.aws.example && exit 1 || true
           ! git ls-files --error-unmatch compose.override.yaml 2>/dev/null
+          ! git ls-files --error-unmatch .env.aws 2>/dev/null
