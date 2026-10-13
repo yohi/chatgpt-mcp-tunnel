@@ -57,8 +57,8 @@ docker compose --env-file .env.aws -f compose.aws.yaml build aws-tunnel
 ```
 
 Prepare the AWS-only named volume for **non-root UID 10001**. This step also
-repairs an empty volume created by an earlier failed image pull, without
-deleting existing SSO tokens:
+repairs the volume's top-level mount directory created by an earlier failed
+image pull, **without deleting or recursively changing existing SSO tokens**:
 
 ```bash
 docker compose --env-file .env.aws -f compose.aws.yaml \
@@ -72,8 +72,14 @@ docker compose --env-file .env.aws -f compose.aws.yaml \
 
 `aws-sso-init` is an **opt-in one-shot** root helper with only `CAP_CHOWN`
 and only the AWS named volume mounted; it does not contact AWS or touch the
-Atlassian volume. The helper does not run with the long-lived tunnel.
-Do not run it unnecessarily after SSO has been configured.
+Atlassian volume. The helper changes **only the mount directory's ownership**,
+not any nested files. This is deliberate: recursive `chown -R` cannot traverse
+a private mode-0700 directory with only `CAP_CHOWN`, and changing descendants
+could unexpectedly modify previously stored authentication state.
+If a preexisting nested AWS cache is owned by another UID, stop and inspect
+its ownership before attempting any separate migration. The helper does not
+run with the long-lived tunnel. Do not run it unnecessarily after SSO has
+been configured.
 
 Configure an SSO profile **inside** the AWS CLI image (interactive prompts). Use **exactly** `aws-mcp-readonly` as the profile name; choose the correct *read-only* AWS account role. The SSO region (Identity Center region) can differ from the AWS MCP endpoint region:
 

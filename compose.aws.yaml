@@ -78,14 +78,16 @@ services:
   aws-sso-init:
     # Explicit one-shot owner repair for a named volume created by an earlier
     # failed image pull or created before the non-root AWS runtime initialized.
-    # Only CHOWN capability is granted and only the AWS named volume is mounted.
+    # Only CHOWN is granted. Avoid recursive traversal of mode-0700 volumes:
+    # root without DAC_OVERRIDE/DAC_READ_SEARCH cannot enumerate them.
+    # The only action is to repair ownership of the mounted directory itself.
     image: chatgpt-aws-mcp-tunnel:local
     profiles:
       - aws-init
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - "chown -R 10001:10001 /home/awsuser/.aws"
+      - "chown 10001:10001 /home/awsuser/.aws"
     read_only: true
     cap_drop:
       - ALL
