@@ -56,15 +56,24 @@ docker compose build tunnel
 docker compose --env-file .env.aws -f compose.aws.yaml build aws-tunnel
 ```
 
-Before running the auth helper, create the AWS volume with the correct non-root ownership:
+Prepare the AWS-only named volume for **non-root UID 10001**. This step also
+repairs an empty volume created by an earlier failed image pull, without
+deleting existing SSO tokens:
 
 ```bash
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm aws-sso-init
+
+# Confirm UID 10001 can write to the mounted AWS cache:
 docker compose --env-file .env.aws -f compose.aws.yaml \
   run --rm --no-deps --entrypoint sh aws-tunnel \
   -c 'test -d /home/awsuser/.aws && test -w /home/awsuser/.aws'
 ```
 
-This command only tests the volume permissions. It does not use AWS credentials or start the tunnel daemon.
+`aws-sso-init` is an **opt-in one-shot** root helper with only `CAP_CHOWN`
+and only the AWS named volume mounted; it does not contact AWS or touch the
+Atlassian volume. The helper does not run with the long-lived tunnel.
+Do not run it unnecessarily after SSO has been configured.
 
 Configure an SSO profile **inside** the AWS CLI image (interactive prompts). Use **exactly** `aws-mcp-readonly` as the profile name; choose the correct *read-only* AWS account role. The SSO region (Identity Center region) can differ from the AWS MCP endpoint region:
 
@@ -114,9 +123,10 @@ In ChatGPT, add a **custom MCP with connection type Tunnel** using the newly cre
 - AWS `AccessDenied`: confirm the designated SSO profile and IAM permission set. Modern AWS managed MCP Server authorizes downstream AWS API actions using IAM; legacy `aws-mcp:InvokeMcp` grants are no longer required.
 - `ExpiredToken`: re-run `aws-auth sso login` above. Do not delete `aws-sso-data` to refresh a session.
 - Missing AWS tools: check `--read-only` tool annotations, logged auth errors and `/health/mcp`; no guarantees that the full resource-inspection toolset is exposed.
-- AWS CLI cannot write to cache: create/inspect `aws-sso-data` using the non-root runtime image and confirm UID/GID 10001 ownership.
+- AWS CLI cannot write to cache: use the one-time `aws-sso-init` helper and verify UID/GID 10001 write access. Do not use `down -v` to repair ownership.
 - `docker compose down -v` **deletes SSO tokens**; never use `-v` casually.
 - AWS endpoint region is distinct from the default AWS API target region (the latter comes from `--metadata AWS_REGION=...`).
+- If `public.ecr.aws/aws-cli/aws-cli:...` fails with `toomanyrequests: Rate exceeded`, that is a container registry **pull quota**, not an AWS SSO/IAM error. The default now uses AWS's officially published Docker Hub image `amazon/aws-cli:2.37.12`, configurable with `AWS_CLI_IMAGE`. Docker Hub may have its own rate limits; do not disable auth or change IAM as a workaround. `orphan containers` warnings are expected when the same Compose project has the separate Atlassian service: **never run with `--remove-orphans`** or it could remove that service.
 - Runtime proxy version is pinned to `mcp-proxy-for-aws-cli==1.7.0` (transitive pins provided by AWS); the base Python and AWS CLI images are version-tagged, not immutable digests.
 
 ## References
