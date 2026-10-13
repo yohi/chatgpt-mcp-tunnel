@@ -17,7 +17,7 @@ RUN apt-get update \
 # Pin core dependency versions; this is not a hash-locked build.
 RUN python -m pip install --no-cache-dir \
     "mcp-proxy-for-aws-cli==1.7.0" \
-    "boto3[crt]==1.42.84"
+    "boto3[crt]==1.43.82"
 
 COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
 COPY scripts/aws-tunnel-healthcheck.py /usr/local/bin/aws-tunnel-healthcheck.py
