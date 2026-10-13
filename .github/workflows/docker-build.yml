@@ -37,6 +37,10 @@ jobs:
         run: |
           docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet
           docker compose --env-file .env.aws.example -f compose.aws.yaml -f compose.aws.ca.example.yaml --profile aws-auth config --quiet
+      - name: Check AWS official Docker Hub CLI image
+        run: |
+          docker pull amazon/aws-cli:2.37.12
+          docker run --rm amazon/aws-cli:2.37.12 --version
       - name: Build AWS SigV4 proxy image
         run: |
           docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
