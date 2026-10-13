@@ -47,7 +47,7 @@ jobs:
           tunnel = config["services"]["aws-tunnel"]
           assert not tunnel.get("ports"), "AWS health port must not be published"
           assert tunnel["environment"]["HEALTH_LISTEN_ADDR"] == "127.0.0.1:18081"
-          assert tunnel["network_mode"] != "host" if "network_mode" in tunnel else True
+          assert tunnel.get("network_mode") != "host"
           print("AWS health is internal-only; no published ports")
           '
       - name: Check AWS official Docker Hub CLI image
