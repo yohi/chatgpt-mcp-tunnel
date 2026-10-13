@@ -55,6 +55,20 @@ jobs:
             tunnel-client --version
             python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
           '
+      - name: Integration-test AWS SSO volume ownership (offline)
+        env:
+          COMPOSE_PROJECT_NAME: aws-sso-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          docker tag chatgpt-aws-mcp-tunnel:ci chatgpt-aws-mcp-tunnel:local
+          # Test the actual Compose one-shot helper with CAP_CHOWN only.
+          # It must work when the cached SSO directory is private (0700).
+          docker compose --env-file .env.aws.example -f compose.aws.yaml \
+            run --rm --no-deps aws-sso-init
+          docker compose --env-file .env.aws.example -f compose.aws.yaml \
+            run --rm --no-deps --entrypoint sh aws-tunnel \
+            -c 'test -w /home/awsuser/.aws && touch /home/awsuser/.aws/.ci-probe && rm /home/awsuser/.aws/.ci-probe'
+          # Clean up only this unique, CI-owned volume (never user credentials).
+          docker volume rm "${COMPOSE_PROJECT_NAME}_aws-sso-data"
       - name: Ensure local-only override stays ignored
         run: |
           touch compose.override.yaml .env.aws
