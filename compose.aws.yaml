@@ -1,0 +1,78 @@
+# Independent AWS connection: no Atlassian volume, no host-network mode,
+# and no ChatGPT plugin/app integration. Device-code auth uses a sidecar CLI.
+# Supply .env.aws with --env-file; do not pass the Atlassian .env file.
+services:
+  aws-tunnel:
+    build:
+      context: .
+      dockerfile: Dockerfile.aws
+    image: chatgpt-aws-mcp-tunnel:local
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    # Loopback-only diagnostics. AWS MCP traffic is outbound over HTTPS.
+    ports:
+      - "127.0.0.1:${AWS_HEALTH_PORT:-18081}:18081"
+    volumes:
+      - aws-sso-data:/home/awsuser/.aws
+    environment:
+      HOME: /home/awsuser
+      AWS_CONFIG_FILE: /home/awsuser/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsuser/.aws/credentials
+      AWS_PROFILE: aws-mcp-readonly
+      AWS_EC2_METADATA_DISABLED: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+      AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      CONTROL_PLANE_API_KEY: "${AWS_CONTROL_PLANE_API_KEY:?Set AWS_CONTROL_PLANE_API_KEY in .env.aws}"
+      CONTROL_PLANE_TUNNEL_ID: "${AWS_CONTROL_PLANE_TUNNEL_ID:?Set AWS_CONTROL_PLANE_TUNNEL_ID in .env.aws}"
+      HEALTH_LISTEN_ADDR: "0.0.0.0:18081"
+      MCP_COMMAND: >-
+        mcp-proxy-for-aws-cli
+        https://aws-mcp.${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}.api.aws/mcp
+        --service aws-mcp
+        --region ${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}
+        --profile aws-mcp-readonly
+        --metadata AWS_REGION=${AWS_MCP_TARGET_REGION:-ap-northeast-1}
+        --read-only
+    healthcheck:
+      test: ["CMD", "python", "/usr/local/bin/aws-tunnel-healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  aws-auth:
+    # The official AWS CLI v2 image is the only AWS login/configuration helper.
+    # Identical UID/GID and HOME let it share *only* the AWS SSO named volume.
+    image: public.ecr.aws/aws-cli/aws-cli:2.37.12
+    profiles:
+      - aws-auth
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m
+    volumes:
+      - aws-sso-data:/home/awsuser/.aws
+    environment:
+      HOME: /home/awsuser
+      AWS_CONFIG_FILE: /home/awsuser/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsuser/.aws/credentials
+      AWS_EC2_METADATA_DISABLED: "true"
+      AWS_PAGER: ""
+      AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+
+volumes:
+  aws-sso-data:
