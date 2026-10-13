@@ -25,6 +25,14 @@ RUN set -eu; \
 
 FROM node:22-bookworm-slim
 
+# Install runtime trust roots explicitly: a CA in the downloader stage does not
+# supply one in this separate runtime stage. Site-specific CAs are opt-in via
+# compose.override.yaml; do not disable TLS certificate verification.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Pin the OAuth bridge; host Node.js/npm installation is unnecessary.
 RUN npm install --global --omit=dev mcp-remote@0.14.3 \
     && npm cache clean --force
