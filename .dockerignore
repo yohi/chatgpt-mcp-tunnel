@@ -6,3 +6,5 @@
 secrets
 .mcp-auth
 *.log
+compose.override.yaml
+compose.override.yml
