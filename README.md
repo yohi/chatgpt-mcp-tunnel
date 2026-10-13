@@ -138,8 +138,8 @@ If the issue remains, inspect proxy environment configuration, certificate chain
 
 A separate Docker-managed **AWS MCP Tunnel** can be added without changing
 the working Atlassian credentials or installing ChatGPT AWS plugins/apps.
-It uses an AWS IAM Identity Center SSO profile, SigV4 proxy, a distinct OpenAI
-Tunnel ID and an independent token volume. It also defaults to
+It uses AWS CLI console login (`aws login --remote`, **no IAM Identity Center requirement**), a SigV4 proxy, a distinct OpenAI
+Tunnel ID and an independent credential cache volume. It also defaults to
 `--read-only`, with AWS IAM as the actual authorization boundary.
 
 See **[AWS setup and security walkthrough](README-AWS.md)**.
