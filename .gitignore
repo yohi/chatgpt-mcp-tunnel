@@ -4,3 +4,7 @@
 secrets/
 .mcp-auth/
 *.log
+
+# Local-only Compose settings (may reference private trust stores / paths)
+/compose.override.yaml
+/compose.override.yml

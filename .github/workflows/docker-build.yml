@@ -17,5 +17,24 @@ jobs:
           CONTROL_PLANE_API_KEY: placeholder-ci-key
           CONTROL_PLANE_TUNNEL_ID: tunnel_placeholder
         run: docker compose --profile auth config --quiet
+      - name: Validate optional CA override
+        env:
+          CONTROL_PLANE_API_KEY: placeholder-ci-key
+          CONTROL_PLANE_TUNNEL_ID: tunnel_placeholder
+        run: docker compose -f compose.yaml -f compose.override.example.yaml --profile auth config --quiet
       - name: Build image (no credentials)
         run: docker build --pull --tag chatgpt-mcp-tunnel:ci .
+      - name: Smoke-test image and CA trust bundle
+        run: |
+          docker run --rm --entrypoint sh chatgpt-mcp-tunnel:ci -ec '
+            test -s /etc/ssl/certs/ca-certificates.crt
+            command -v tunnel-client
+            command -v mcp-remote
+            command -v mcp-remote-client
+            tunnel-client --version
+          '
+      - name: Ensure local-only override stays ignored
+        run: |
+          touch compose.override.yaml
+          git check-ignore -q compose.override.yaml
+          ! git ls-files --error-unmatch compose.override.yaml 2>/dev/null
