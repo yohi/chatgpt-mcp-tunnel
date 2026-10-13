@@ -112,7 +112,7 @@ One observed failure was an OpenAI control-plane poll in `backoff` while `/ready
 
 ```bash
 # Host check: unauthenticated 401 means an HTTPS response was received.
-curl -sS -o /dev/null -w 'HTTP %{http_code}\\n' https://api.openai.com/v1/models
+curl -sS -o /dev/null -w 'HTTP %{http_code}\n' https://api.openai.com/v1/models
 
 # Container CA presence and basic HTTPS check:
 docker compose exec -T tunnel sh -c 'test -s /etc/ssl/certs/ca-certificates.crt && echo "CA bundle present"'
