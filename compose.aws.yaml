@@ -1,5 +1,5 @@
 # Independent AWS connection: no Atlassian volume, no host-network mode,
-# and no ChatGPT plugin/app integration. Device-code auth uses a sidecar CLI.
+# and no ChatGPT plugin/app integration. Console login uses an AWS CLI helper container.
 # Supply .env.aws with --env-file; do not pass the Atlassian .env file.
 services:
   aws-tunnel:
@@ -51,7 +51,7 @@ services:
   aws-auth:
     # AWS CLI v2 published by AWS on Docker Hub (ECR Public can rate-limit).
     # Override AWS_CLI_IMAGE in .env.aws to use a trusted mirror.
-    # Identical UID/GID and HOME let it share *only* the AWS SSO named volume.
+    # Identical UID/GID and HOME share *only* the AWS credential cache volume.
     image: "${AWS_CLI_IMAGE:-amazon/aws-cli:2.37.12}"
     profiles:
       - aws-auth
@@ -76,7 +76,8 @@ services:
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
 
   aws-sso-init:
-    # Explicit one-shot owner repair for a named volume created by an earlier
+    # Legacy service name (kept to preserve documented commands); one-shot
+    # ownership repair for the credential cache volume created by an earlier
     # failed image pull or created before the non-root AWS runtime initialized.
     # Only CHOWN is granted. Avoid recursive traversal of mode-0700 volumes:
     # root without DAC_OVERRIDE/DAC_READ_SEARCH cannot enumerate them.
