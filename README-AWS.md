@@ -143,7 +143,7 @@ In ChatGPT, add a **custom MCP with connection type Tunnel** using the newly cre
 - The AWS `aws login` cache requires `boto3[crt]` in the Python MCP proxy image, not only AWS CLI v2 in the auth helper. A successful CLI `sts get-caller-identity` does **not** prove the Python proxy can resolve it.
 - AWS endpoint region is distinct from the default AWS API target region (the latter comes from `--metadata AWS_REGION=...`).
 - If `public.ecr.aws/aws-cli/aws-cli:...` fails with `toomanyrequests: Rate exceeded`, that is a container registry **pull quota**, not an AWS SSO/IAM error. The default now uses AWS's officially published Docker Hub image `amazon/aws-cli:2.37.12`, configurable with `AWS_CLI_IMAGE`. Docker Hub may have its own rate limits; do not disable auth or change IAM as a workaround. `orphan containers` warnings are expected when the same Compose project has the separate Atlassian service: **never run with `--remove-orphans`** or it could remove that service.
-- Runtime proxy is pinned to `mcp-proxy-for-aws-cli==1.7.0`, Boto3+CRT to `1.42.84`; Python and AWS CLI base images are version-tagged, not immutable digests. Retest security and credential-refresh compatibility when upgrading.
+- Runtime proxy is pinned to `mcp-proxy-for-aws-cli==1.7.0`, Boto3+CRT to `1.43.82`; Python and AWS CLI base images are version-tagged, not immutable digests. Retest security and credential-refresh compatibility when upgrading.
 
 ## References
 
