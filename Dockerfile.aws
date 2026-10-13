@@ -1,0 +1,34 @@
+# AWS-specific image. Reuse the already verified tunnel-client binary
+# from the project's existing, checksum-verified Docker build.
+# Build "chatgpt-mcp-tunnel:local" before building this image.
+FROM chatgpt-mcp-tunnel:local AS tunnel-source
+
+FROM python:3.12-slim-bookworm
+
+# Debian trust roots are installed in the *runtime* image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# The -cli distribution pins its transitive Python dependencies to == versions.
+# This is version locking, not wheel-hash/SBOM verification.
+RUN python -m pip install --no-cache-dir "mcp-proxy-for-aws-cli==1.7.0"
+
+COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
+COPY scripts/aws-tunnel-healthcheck.py /usr/local/bin/aws-tunnel-healthcheck.py
+
+RUN groupadd --gid 10001 awsuser \
+    && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin awsuser \
+    && install -d -m 0700 -o awsuser -g awsuser /home/awsuser/.aws
+
+USER 10001:10001
+ENV HOME=/home/awsuser \
+    PYTHONDONTWRITEBYTECODE=1 \
+    AWS_EC2_METADATA_DISABLED=true \
+    AWS_CONFIG_FILE=/home/awsuser/.aws/config \
+    AWS_SHARED_CREDENTIALS_FILE=/home/awsuser/.aws/credentials \
+    AWS_PROFILE=aws-mcp-readonly
+
+ENTRYPOINT ["tunnel-client"]
+CMD ["run"]
