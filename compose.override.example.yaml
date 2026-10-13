@@ -1,0 +1,22 @@
+# OPTIONAL: copy to compose.override.yaml on a trusted Debian/Ubuntu host.
+# The file is intentionally ignored. Do NOT use if your host CA bundle is
+# absent or you have not verified the host CA trust configuration.
+x-host-ca: &host-ca
+  type: bind
+  source: /etc/ssl/certs/ca-certificates.crt
+  target: /etc/ssl/certs/ca-certificates.crt
+  read_only: true
+
+services:
+  tunnel:
+    volumes:
+      - *host-ca
+    environment:
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
+
+  auth:
+    volumes:
+      - *host-ca
+    environment:
+      NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
