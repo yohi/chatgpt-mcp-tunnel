@@ -23,6 +23,7 @@ def load(name, source):
 
 process = load("role_credential_process", "/usr/local/bin/aws-mcp-credential-process.py")
 broker = load("role_credential_broker", "/usr/local/bin/aws-mcp-credential-broker.py")
+bootstrap = load("role_bootstrap", "/usr/local/bin/aws-mcp-bootstrap-role.py")
 
 ROLE = "arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole"
 ROLE_SESSION = "arn:aws:sts::123456789012:assumed-role/ChatGPTMcpReadOnlyRole/chatgpt-mcp-readonly"
@@ -136,6 +137,108 @@ class StsBrokerTests(unittest.TestCase):
         with patch.object(broker.boto3, "Session", side_effect=[source, assumed]):
             with self.assertRaises(ValueError):
                 broker.acquire(ROLE)
+
+
+class RoleBootstrapTests(unittest.TestCase):
+    def test_fixed_role_derived_from_iam_user_and_rejects_assumed_role(self):
+        source, role, trust = bootstrap.describe_target({
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/operator",
+        })
+        self.assertEqual(source, "arn:aws:iam::123456789012:user/operator")
+        self.assertEqual(role, ROLE)
+        self.assertEqual(trust["Statement"][0]["Principal"]["AWS"], source)
+        with self.assertRaises(ValueError):
+            bootstrap.describe_target({
+                "Account": "123456789012",
+                "Arn": ROLE_SESSION,
+            })
+
+    def test_default_role_resolution_uses_authenticated_account(self):
+        session = Mock()
+        session.client.return_value.get_caller_identity.return_value = {
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/operator",
+        }
+        with patch.object(broker.boto3, "Session", return_value=session):
+            self.assertEqual(broker.derive_role_arn(), ROLE)
+        session.client.return_value.get_caller_identity.return_value = {
+            "Account": "123456789012",
+            "Arn": ROLE_SESSION,
+        }
+        with patch.object(broker.boto3, "Session", return_value=session):
+            with self.assertRaises(ValueError):
+                broker.derive_role_arn()
+
+    def test_bootstrap_preview_does_not_create_iam_role(self):
+        from botocore.exceptions import ClientError
+
+        sts, iam = Mock(), Mock()
+        sts.get_caller_identity.return_value = {
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/operator",
+        }
+        iam.get_role.side_effect = ClientError(
+            {"Error": {"Code": "NoSuchEntity", "Message": "absent"}},
+            "GetRole",
+        )
+        source = Mock()
+        source.client.side_effect = lambda name: {"sts": sts, "iam": iam}[name]
+        self.assertEqual(bootstrap.bootstrap(source, apply=False), ROLE)
+        iam.create_role.assert_not_called()
+        iam.attach_role_policy.assert_not_called()
+
+    def test_apply_only_creates_fixed_role_and_readonly_policy(self):
+        from botocore.exceptions import ClientError
+
+        identity = {
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/operator",
+        }
+        _, _, trust = bootstrap.describe_target(identity)
+        sts, iam = Mock(), Mock()
+        sts.get_caller_identity.return_value = identity
+        iam.get_role.side_effect = [
+            ClientError(
+                {"Error": {"Code": "NoSuchEntity", "Message": "absent"}},
+                "GetRole",
+            ),
+            {"Role": {"Path": "/", "AssumeRolePolicyDocument": trust}},
+        ]
+        iam.list_attached_role_policies.return_value = {
+            "AttachedPolicies": [{"PolicyArn": bootstrap.READ_ONLY_POLICY}]
+        }
+        iam.list_role_policies.return_value = {"PolicyNames": []}
+        session = Mock()
+        session.client.side_effect = lambda name: {"sts": sts, "iam": iam}[name]
+        self.assertEqual(bootstrap.bootstrap(session, apply=True), ROLE)
+        creation = iam.create_role.call_args.kwargs
+        self.assertEqual(creation["RoleName"], "ChatGPTMcpReadOnlyRole")
+        self.assertEqual(json.loads(creation["AssumeRolePolicyDocument"]), trust)
+        self.assertEqual(creation["MaxSessionDuration"], 3600)
+        iam.attach_role_policy.assert_called_once_with(
+            RoleName="ChatGPTMcpReadOnlyRole",
+            PolicyArn="arn:aws:iam::aws:policy/ReadOnlyAccess",
+        )
+
+    def test_existing_role_with_extra_permissions_is_refused(self):
+        _, _, trust = bootstrap.describe_target({
+            "Account": "123456789012",
+            "Arn": "arn:aws:iam::123456789012:user/operator",
+        })
+        iam = Mock()
+        iam.get_role.return_value = {
+            "Role": {"Path": "/", "AssumeRolePolicyDocument": trust}
+        }
+        iam.list_attached_role_policies.return_value = {
+            "AttachedPolicies": [
+                {"PolicyArn": bootstrap.READ_ONLY_POLICY},
+                {"PolicyArn": "arn:aws:iam::aws:policy/AdministratorAccess"},
+            ]
+        }
+        with self.assertRaises(ValueError):
+            bootstrap.validate_existing_role(iam, bootstrap.ROLE_NAME, trust)
+        iam.attach_role_policy.assert_not_called()
 
 
 if __name__ == "__main__":
