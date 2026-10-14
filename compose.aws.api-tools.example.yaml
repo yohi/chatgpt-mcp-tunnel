@@ -1,30 +1,98 @@
-# Opt-in: AWS managed MCP API tools, including run_script.
+# Explicit opt-in: broad AWS API reads through an isolated STS role session.
 #
-# SECURITY GATE (human/operator):
-# Only apply this override AFTER verifying that the exact credentials in
-# aws-mcp-readonly have effective read-only IAM permissions across the
-# required AWS services (including all attached user/group policies,
-# permission boundaries, organization SCPs, and resource policies).
+# Requires Docker Compose >= 2.24.4 for !override (critical to replace the
+# original admin login cache volume, NEVER append to the original volume).
+# Prerequisites: separately provisioned, independently reviewed AWS read-only
+# role + trust policy; AWS_MCP_READ_ROLE_ARN in .env.aws.
 #
-# Without --read-only, the proxy may ADVERTISE write-capable tools.
-# Tool arguments and prompts are NOT authorization controls. IAM enforces
-# the downstream service actions; never use an admin/power user credential.
-# This override does NOT make run_script intrinsically read-only.
+# Do NOT mount aws-sso-data in aws-tunnel. The admin console-login cache is
+# available ONLY to aws-auth and aws-credential-broker.
 #
-# Opt in explicitly:
-# docker compose --env-file .env.aws -f compose.aws.yaml \
-#   -f compose.aws.api-tools.example.yaml up -d --no-deps --force-recreate aws-tunnel
+# First run: docker compose --env-file .env.aws -f compose.aws.yaml \
+#   -f compose.aws.api-tools.example.yaml run --rm aws-role-init
 #
-# Rollback by omitting this file on the next recreation:
-# docker compose --env-file .env.aws -f compose.aws.yaml \
-#   up -d --no-deps --force-recreate aws-tunnel
+# Start: docker compose --env-file .env.aws -f compose.aws.yaml \
+#   -f compose.aws.api-tools.example.yaml up -d --no-deps aws-credential-broker
+# Then: docker compose --env-file .env.aws -f compose.aws.yaml \
+#   -f compose.aws.api-tools.example.yaml up -d --force-recreate aws-tunnel
+#
+# The generic run_script remains a write-CAPABLE TOOL; STS session policy
+# caps grants to AWS-managed ReadOnlyAccess, with IAM/SCPs as additional
+# enforcement. Broad read access can expose sensitive customer data.
 services:
   aws-tunnel:
+    # !override is mandatory. Otherwise Compose merges and leaks the admin
+    # cache into this container along with the role-only volume.
+    volumes: !override
+      - aws-mcp-role-credentials:/run/aws-mcp-credentials:ro
     environment:
+      AWS_PROFILE: aws-mcp-sts-readonly
+      AWS_CONFIG_FILE: /etc/aws-mcp/config
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
       MCP_COMMAND: >-
         mcp-proxy-for-aws-cli
         https://aws-mcp.${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}.api.aws/mcp
         --service aws-mcp
         --region ${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}
-        --profile aws-mcp-readonly
+        --profile aws-mcp-sts-readonly
         --metadata AWS_REGION=${AWS_MCP_TARGET_REGION:-ap-northeast-1}
+    depends_on:
+      aws-credential-broker:
+        condition: service_healthy
+
+  aws-credential-broker:
+    image: chatgpt-aws-mcp-tunnel:local
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    entrypoint: ["python", "/usr/local/bin/aws-mcp-credential-broker.py"]
+    command: []
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m
+    # Only this service can access BOTH credential stores. The login cache
+    # is rw because AWS SDK login_session may refresh it during the 12h session.
+    volumes:
+      - aws-sso-data:/home/awsuser/.aws
+      - aws-mcp-role-credentials:/run/aws-mcp-credentials
+    environment:
+      HOME: /home/awsuser
+      AWS_CONFIG_FILE: /home/awsuser/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsuser/.aws/credentials
+      AWS_PROFILE: aws-mcp-readonly
+      AWS_EC2_METADATA_DISABLED: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+      AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      AWS_MCP_READ_ROLE_ARN: "${AWS_MCP_READ_ROLE_ARN:?Set the independently approved read-only role ARN in .env.aws}"
+    healthcheck:
+      test: ["CMD", "python", "/usr/local/bin/aws-mcp-credential-process.py", "--check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  aws-role-init:
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles:
+      - aws-role-init
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - "chmod 0700 /run/aws-mcp-credentials && chown 10001:10001 /run/aws-mcp-credentials"
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - aws-mcp-role-credentials:/run/aws-mcp-credentials
+
+volumes:
+  aws-mcp-role-credentials:
