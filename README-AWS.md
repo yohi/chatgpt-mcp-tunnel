@@ -20,7 +20,7 @@ Docker: aws-auth (official AWS CLI v2 image)
 Docker: aws-tunnel
 ```
 
-The existing Atlassian MCP uses `compose.yaml` and the `oauth-data` volume. **AWS uses an independent Tunnel ID, key, image, Compose file, credential cache volume, and health port (18081)**. The preexisting volume and initializer retain their `aws-sso-*` names for backward compatibility; **IAM Identity Center is not required**. The AWS containers use Docker bridge networking, not host networking; only the loopback diagnostic endpoint is published.
+The existing Atlassian MCP uses `compose.yaml` and the `oauth-data` volume. **AWS uses an independent Tunnel ID, key, image, Compose file, credential cache volume, and internal health listener (127.0.0.1:18081)**. The preexisting volume and initializer retain their `aws-sso-*` names for backward compatibility; **IAM Identity Center is not required**. AWS containers use Docker bridge networking, not host networking. **No AWS health port is published to the host.** The OpenAI runtime's detailed `/health/*` API is explicitly *loopback-only* and denies requests forwarded through Docker's published ports with HTTP **403**; an address of `127.0.0.1` on the host does not make the request a container-internal loopback peer. Use `docker compose exec` for component-level diagnostics. See [upstream health documentation](https://github.com/openai/tunnel-client/blob/master/docs/health.md).
 
 ## Security decision: read-only is enforced by IAM
 
@@ -121,8 +121,18 @@ docker compose --env-file .env.aws -f compose.aws.yaml up -d aws-tunnel
 docker compose --env-file .env.aws -f compose.aws.yaml ps
 docker compose --env-file .env.aws -f compose.aws.yaml logs --tail=100 aws-tunnel
 
-curl -fsS http://127.0.0.1:18081/health/control-plane | python3 -m json.tool
-curl -fsS http://127.0.0.1:18081/health/mcp | python3 -m json.tool
+# Detailed health APIs are restricted to internal loopback. Host curl to
+# 127.0.0.1:18081 returned 403 with the old published-port configuration.
+docker compose --env-file .env.aws -f compose.aws.yaml exec -T aws-tunnel \
+  python -c '
+import json
+from urllib.request import urlopen
+for path in ("/health/control-plane", "/health/mcp"):
+    with urlopen("http://127.0.0.1:18081" + path, timeout=5) as response:
+        data = json.load(response)
+    print(path)
+    print(json.dumps(data, indent=2))
+'
 ```
 
 A `control-plane.status: ok` with `last_success` proves a successful OpenAI poll, **not** AWS authorization. The stdio MCP health may say `not_observed` until actual ChatGPT traffic flows. If the login has expired, repeat `aws login --remote` using the `aws-auth` helper; if the proxy continues to report stale credentials after re-login, restart only `aws-tunnel`.
@@ -133,7 +143,10 @@ In ChatGPT, add a **custom MCP with connection type Tunnel** using the newly cre
 
 ## Troubleshooting and local trust
 
+- HTTP `403 Forbidden` from `curl http://127.0.0.1:18081/health/control-plane`: this is the tunnel-client's **local-only diagnostics access policy**, not AWS IAM or failed OpenAI polling. Old Compose versions published the AWS health port through Docker bridge, changing the apparent client address. The current Compose removes that publication; read `/health/control-plane` and `/health/mcp` with the documented `docker compose exec -T aws-tunnel python` command.
 - OpenAI poll in `backoff` or `network_error`: inspect `/health/control-plane` and TLS errors. `/readyz` alone is not proof of a successful poll.
+- No changes to the AWS SigV4 endpoint, IAM principal, profile, or cached login credentials are needed when correcting a health-only 403. Recreate **only** the AWS tunnel container (`docker compose --env-file .env.aws -f compose.aws.yaml up -d --no-deps --force-recreate aws-tunnel`) after pulling the fix; this does not delete the named AWS volume or modify the Atlassian service. Do not use `--remove-orphans` or `down -v`.
+
 - `x509: certificate signed by unknown authority`: the Python runtime and AWS CLI use different trust paths. For trusted Debian/Ubuntu host CA bundles, see `compose.aws.ca.example.yaml`; apply **only** after verifying your CA roots. Never disable TLS verification.
 - AWS `AccessDenied`: confirm the designated `aws-mcp-readonly` console-login profile, `SignInLocalDevelopmentAccess` login permission and separately granted downstream read access. Modern AWS managed MCP Server authorizes downstream AWS API actions using IAM; legacy `aws-mcp:InvokeMcp` grants are no longer required.
 - `ExpiredToken` / `LoginRefreshRequired`: repeat `aws-auth login --remote --profile aws-mcp-readonly`. The upstream MCP proxy has reported refresh-boundary problems (see aws/mcp-proxy-for-aws issues #304 and #321); after re-login, check `aws-auth sts get-caller-identity` and restart **only aws-tunnel** if requests remain stuck. Do not delete `aws-sso-data` to refresh a session.

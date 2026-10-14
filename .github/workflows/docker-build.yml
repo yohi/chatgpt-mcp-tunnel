@@ -37,6 +37,19 @@ jobs:
         run: |
           docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet
           docker compose --env-file .env.aws.example -f compose.aws.yaml -f compose.aws.ca.example.yaml --profile aws-auth config --quiet
+      - name: Verify AWS detailed health is internal-only
+        run: |
+          docker compose --env-file .env.aws.example -f compose.aws.yaml config --format json \
+            | python3 -c '
+          import json
+          import sys
+          config = json.load(sys.stdin)
+          tunnel = config["services"]["aws-tunnel"]
+          assert not tunnel.get("ports"), "AWS health port must not be published"
+          assert tunnel["environment"]["HEALTH_LISTEN_ADDR"] == "127.0.0.1:18081"
+          assert tunnel.get("network_mode") != "host"
+          print("AWS health is internal-only; no published ports")
+          '
       - name: Check AWS official Docker Hub CLI image
         run: |
           docker pull amazon/aws-cli:2.37.12
