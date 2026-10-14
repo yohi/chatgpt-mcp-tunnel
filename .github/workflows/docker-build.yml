@@ -50,6 +50,36 @@ jobs:
           assert tunnel.get("network_mode") != "host"
           print("AWS health is internal-only; no published ports")
           '
+      - name: Validate opt-in cross-service API tools (offline)
+        run: |
+          docker compose --env-file .env.aws.example \
+            -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+            --profile aws-auth config --quiet
+          python3 - <<'PY'
+          import json
+          import shlex
+          import subprocess
+
+          cmd = ["docker", "compose", "--env-file", ".env.aws.example"]
+          base = json.loads(subprocess.check_output(
+              [*cmd, "-f", "compose.aws.yaml", "config", "--format", "json"], text=True
+          ))
+          optin = json.loads(subprocess.check_output(
+              [*cmd, "-f", "compose.aws.yaml",
+               "-f", "compose.aws.api-tools.example.yaml",
+               "config", "--format", "json"], text=True
+          ))
+          original = base["services"]["aws-tunnel"]
+          expanded = optin["services"]["aws-tunnel"]
+          original_args = shlex.split(original["environment"].pop("MCP_COMMAND"))
+          expanded_args = shlex.split(expanded["environment"].pop("MCP_COMMAND"))
+          assert original_args[-1] == "--read-only", "Default must filter unsafe tools"
+          assert expanded_args == original_args[:-1], "Opt-in must only remove the final filter flag"
+          assert original == expanded, "Opt-in must not alter any other AWS container settings"
+          assert expanded["environment"]["AWS_PROFILE"] == "aws-mcp-readonly"
+          assert not expanded.get("ports"), "No host health port should be exposed"
+          print("Default filter preserved; explicit opt-in changes only MCP_COMMAND")
+          PY
       - name: Check AWS official Docker Hub CLI image
         run: |
           docker pull amazon/aws-cli:2.37.12
