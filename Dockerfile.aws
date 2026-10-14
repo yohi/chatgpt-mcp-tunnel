@@ -21,6 +21,9 @@ RUN python -m pip install --no-cache-dir \
 
 COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
 COPY scripts/aws-tunnel-healthcheck.py /usr/local/bin/aws-tunnel-healthcheck.py
+COPY scripts/aws-mcp-credential-process.py /usr/local/bin/aws-mcp-credential-process.py
+COPY scripts/aws-mcp-credential-broker.py /usr/local/bin/aws-mcp-credential-broker.py
+COPY etc/aws-mcp/sts-credential-process.conf /etc/aws-mcp/config
 
 RUN groupadd --gid 10001 awsuser \
     && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin awsuser \
