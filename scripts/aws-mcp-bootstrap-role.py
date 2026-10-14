@@ -156,15 +156,16 @@ def validate_owned_role(iam, state, trust, tags, cleanup=False):
 def clear_cached_credentials():
     # Only delete the project-owned role credential JSON; never purge the
     # admin console login cache or another user's credentials.
-    if not ROLE_CREDS.parent.exists():
-        return
-    info = ROLE_CREDS.parent.lstat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
-        raise ValueError("role credential directory is unsafe; refusing cleanup")
+    # Cleanup must also work when IAM role creation succeeded but the
+    # role-volume initializer/Broker was never started (empty Docker volume
+    # may still be root-owned). No credential file then exists to purge.
     try:
         item = ROLE_CREDS.lstat()
     except FileNotFoundError:
         return
+    info = ROLE_CREDS.parent.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
+        raise ValueError("role credential directory is unsafe; refusing cleanup")
     if not stat.S_ISREG(item.st_mode) or item.st_uid != os.geteuid() or item.st_mode & 0o077:
         raise ValueError("role credential file is unsafe; refusing cleanup")
     ROLE_CREDS.unlink()
