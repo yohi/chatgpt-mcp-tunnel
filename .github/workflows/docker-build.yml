@@ -82,13 +82,13 @@ jobs:
           assert broker_volumes == {"/home/awsuser/.aws", "/run/aws-mcp-credentials"}
           bootstrap = base["services"]["aws-role-bootstrap"]
           assert bootstrap["profiles"] == ["aws-bootstrap"]
-          assert {x["target"] for x in bootstrap["volumes"]} == {"/home/awsuser/.aws"}
+          assert {x["target"] for x in bootstrap["volumes"]} == {"/home/awsuser/.aws", "/run/aws-mcp-credentials"}
           assert bootstrap["entrypoint"] == [
               "python", "/usr/local/bin/aws-mcp-bootstrap-role.py"
           ]
           assert "CONTROL_PLANE_API_KEY" not in bootstrap["environment"]
           assert "AWS_MCP_READ_ROLE_ARN" not in bootstrap["environment"]
-          assert source["environment"]["AWS_MCP_READ_ROLE_ARN"] == ""
+          assert "AWS_MCP_READ_ROLE_ARN" not in source["environment"]
 
           assert expanded["environment"]["AWS_PROFILE"] == "aws-mcp-sts-readonly"
           assert expanded["environment"]["AWS_CONFIG_FILE"] == "/etc/aws-mcp/config"
@@ -125,6 +125,7 @@ jobs:
             python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
             python -m ast /usr/local/bin/aws-mcp-credential-broker.py >/dev/null
             python -m ast /usr/local/bin/aws-mcp-bootstrap-role.py >/dev/null
+            python -c "from pathlib import Path; assert Path('/usr/local/bin/aws-mcp-bootstrap-role.py').exists()"
             python -m ast /usr/local/bin/aws-mcp-credential-process.py >/dev/null
             test -s /etc/aws-mcp/config
           '
@@ -166,6 +167,10 @@ jobs:
             run --rm --no-deps --entrypoint python aws-credential-broker \
             -c 'from pathlib import Path; p=Path("/run/aws-mcp-credentials"); assert p.is_dir() and p.stat().st_uid == 10001; p.joinpath(".ci-probe").write_text("ok"); p.joinpath(".ci-probe").unlink()'
           docker volume rm "${COMPOSE_PROJECT_NAME}_aws-mcp-role-credentials"
+      - name: Validate temporary role cleanup launcher
+        run: |
+          bash -n scripts/aws-mcp-end-session.sh
+          grep -q "aws-role-bootstrap --cleanup --confirm-stopped" scripts/aws-mcp-end-session.sh
       - name: Ensure local-only override stays ignored
         run: |
           touch compose.override.yaml .env.aws
