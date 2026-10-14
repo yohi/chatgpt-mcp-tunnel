@@ -96,6 +96,7 @@ services:
       - /tmp:rw,nosuid,nodev,size=32m
     volumes:
       - aws-sso-data:/home/awsuser/.aws
+      - aws-mcp-role-credentials:/run/aws-mcp-credentials
     environment:
       HOME: /home/awsuser
       AWS_CONFIG_FILE: /home/awsuser/.aws/config
@@ -131,4 +132,5 @@ services:
       - aws-sso-data:/home/awsuser/.aws
 
 volumes:
+  aws-mcp-role-credentials:
   aws-sso-data:
