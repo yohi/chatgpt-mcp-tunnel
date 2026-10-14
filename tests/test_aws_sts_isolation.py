@@ -279,8 +279,8 @@ class TimestampRoleLifecycleTests(unittest.TestCase):
         with patch.object(bootstrap, "read_state", return_value=RECORD), patch.object(
             bootstrap, "validate_owned_role", return_value=[bootstrap.READ_ONLY_POLICY]
         ), patch.object(bootstrap, "clear_cached_credentials") as clear, patch.object(
-            bootstrap.STATE, "unlink"
-        ) as unlink:
+            bootstrap, "STATE", Mock()
+        ) as state_path:
             self.assertIsNone(bootstrap.lifecycle(
                 session, cleanup=True, confirmed_stopped=True
             ))
@@ -289,7 +289,7 @@ class TimestampRoleLifecycleTests(unittest.TestCase):
             RoleName=ROLE_NAME, PolicyArn=bootstrap.READ_ONLY_POLICY
         )
         iam.delete_role.assert_called_once_with(RoleName=ROLE_NAME)
-        unlink.assert_called_once()
+        state_path.unlink.assert_called_once()
 
     def test_cleanup_different_user_fails_closed(self):
         session, sts, iam = aws_client_session()
