@@ -34,22 +34,26 @@ Use `AWS_PROFILE=aws-mcp-readonly` only. The proxy is given exactly **one** AWS 
 
 **Explicit operational rules:** No AWS mutation, IAM changes or live service operations are performed automatically. Do not grant write permissions to this role as a convenient workaround. A future write-capable route needs independent review and a separate role, Tunnel and approval path. At-rest access to the Docker volume permits use of its cached console-login credentials; protect Docker administrative access and backups.
 
-## Fast path: one command to provision the IAM role (no console clicks)
+## Temporary IAM role lifecycle: timestamped creation and guaranteed end-of-use cleanup
 
-If you already have a valid `aws login --remote --profile aws-mcp-readonly`
-session, **you do not have to create or configure the IAM role manually**.
-The repo includes an explicitly invoked, one-shot bootstrap that:
-- Identifies the *current* IAM user using STS `GetCallerIdentity`.
-- Creates the fixed role `ChatGPTMcpReadOnlyRole`, trusting **only that IAM user**.
-- Attaches **only** the AWS-managed `ReadOnlyAccess` policy to the new role.
-- Refuses to overwrite an existing role with a different trust relationship,
-  attached policies, or unexpected inline policy.
-- Never prints session access keys or modifies the existing IAM user.
-- Does not grant write privileges to the role and does not start the MCP.
+**Do not create a permanent IAM role for this project.** The lifecycle
+bootstrap generates a unique role name using the requested
+`ReadOnlyIAMRole_YYYYYMMDDHHMMSS` mask. There are **five Y characters**
+in the supplied mask: the year is therefore five digits (zero-padded);
+for example, 2026-10-14 14:23:01 JST produces
+`ReadOnlyIAMRole_020261014142301`. The timestamp is taken from
+`Asia/Tokyo` at actual creation time. Creation and deletion are one
+per explicitly initiated MCP usage lifecycle, **not per STS refresh**.
 
-**Before the first run:** pull the PR #10 branch and build the AWS image.
-Do not merge this draft or start the AWS Tunnel while it is using the
-administrator's original credentials.
+The role trusts only the IAM user currently authenticated by
+`aws login --remote --profile aws-mcp-readonly` and has only
+`arn:aws:iam::aws:policy/ReadOnlyAccess` attached. It is tagged with
+the provisioning application and the IAM user and recorded in a private
+file inside the existing **admin login volume**. That file is visible
+to the trusted Broker, **never** to the AWS MCP container. A role with
+the same name is never silently adopted.
+
+**Bootstrap — operator explicitly authorizes IAM creation:**
 
 ```bash
 git fetch origin
@@ -57,33 +61,65 @@ git switch feat/aws-broad-iam-read-api-tools
 git pull --ff-only origin feat/aws-broad-iam-read-api-tools
 docker compose --env-file .env.aws -f compose.aws.yaml build aws-tunnel
 
-# Read-only preview of current identity and target role.
+# Preview the source identity and generated name (no changes in AWS).
 docker compose --env-file .env.aws -f compose.aws.yaml \
   run --rm --no-deps aws-role-bootstrap
 
-# Only the following invocation creates an IAM role if it is absent.
+# Explicitly create a NEW timestamped role. Only this call changes IAM.
 docker compose --env-file .env.aws -f compose.aws.yaml \
   run --rm --no-deps aws-role-bootstrap --apply
 ```
 
-The tool is **not run automatically** during Compose startup, builds,
-or installation. The `--apply` command is an explicit
-IAM **CreateRole / AttachRolePolicy** operation, so review the preview
-before running it. Administrator authorization is required on the original
-IAM login account. If a same-named role already exists, the script
-validates and **does not modify** it.
+An existing project-owned role is **verified**, not recreated; its
+`RoleId`, full ARN, source identity, trust policy, both expected tags,
+the sole attached policy, and absence of inline policies and instance
+profiles are checked. A mismatch stops the operation. The role identity
+is saved as a `0600` local lifecycle record within the credential
+cache, without AWS secret values. **Do not delete the local admin
+volume before normal cleanup; it holds the exact role identity needed
+to avoid deleting an unrelated role.**
 
-After that, the STS Broker automatically derives the approved default role
-ARN from the authenticated account. **No manual account ID, role ARN, or
-additional `.env.aws` setting is required.** The optional
-`AWS_MCP_READ_ROLE_ARN` environment setting is for an independently
-reviewed *non-default* role; never point it at an admin role.
+**Use**: follow the [STS broker activation](#activate-on-an-authorized-read-only-iam-role)
+section below. The Broker reads the recorded role ARN; it never
+guesses a role name or falls back to the administrator's credentials.
+Once started, STS credentials renew every 20 minutes until the
+source `aws login` session expires. You do not recreate the role
+for routine renewals.
 
-Proceed to the [STS broker activation steps](#activate-on-an-authorized-read-only-iam-role).
-IAM role creation is an AWS account mutation, which has not been executed
-by the repository or its CI. The human operator must review IAM trust,
-permission boundaries, resource policies, organization SCPs and sensitive
-read-data exposure independently before enabling `run_script`.
+**End-of-use cleanup (single explicit command):**
+
+```bash
+bash scripts/aws-mcp-end-session.sh
+```
+
+This command, run from the repository, **stops the AWS MCP Tunnel and
+Credential Broker**, confirms neither is running, then invokes
+`aws-role-bootstrap --cleanup --confirm-stopped`. The cleanup verifies
+the recorded `RoleId`, ARN, trusted user, ownership tags, and policies,
+checks that the role belongs to no instance profile, deletes only the
+MCP role's cached STS credential JSON, **detaches ReadOnlyAccess and
+deletes only the recorded role**, and removes the lifecycle record.
+It never deletes the original AWS console login cache, named Docker
+volumes, or the unrelated Atlassian service.
+
+The command is **not** automatically run by `docker compose stop`,
+restart policies, expiry, machine shutdown, or crashes. Those do not
+reliably mean "finished using the role." If the host stops unexpectedly,
+run the cleanup command after it returns. If it reports that cleanup
+failed, **do not assume the role was removed**: fix the error and rerun
+the same cleanup. A partial detach can be safely retried.
+
+IAM authorization changes may take time to propagate, and previously
+issued STS sessions should not be treated as instantly revoked at the
+moment of deletion. The broker is stopped and the locally stored STS
+document is removed before IAM deletion, and the role/session policies
+no longer grant permissions once propagated. For immediate revocation
+requirements, review AWS's separate revoke-active-sessions mechanism.
+
+**No IAM mutations have been performed by this PR or CI**.
+The `--apply` and cleanup commands above are explicit human-triggered
+operations. No independent role/policy review or actual AWS test has
+yet been completed.
 
 ## All-service AWS API reads via isolated STS credentials (opt-in)
 
@@ -118,13 +154,10 @@ aws-tunnel                (credential_process + SigV4)
 
 **Trust and authorization prerequisites (operator / IAM owner)**
 
-1. Provision an independently reviewed IAM role such as
-   `ChatGPTMcpReadOnlyRole`. Its **trust policy** must permit precisely the
-   intended human IAM principal to call `sts:AssumeRole`. Its **permissions**
-   policy should grant `arn:aws:iam::aws:policy/ReadOnlyAccess` or a
-   narrower, reviewed set of read actions; don't attach administrator
-   permissions. The source login user's existing grants are **not
-   inherited** by the assumed role.
+1. Use the temporary IAM role provisioned above. Its trust policy permits
+   only the source IAM principal to call `sts:AssumeRole`, and its attached
+   role policy is `arn:aws:iam::aws:policy/ReadOnlyAccess`. Existing
+   source-user admin grants are **not inherited** by the STS role session.
 2. The broker also passes AWS-managed `ReadOnlyAccess` as an **STS managed
    session policy**, so the role session grants only the **intersection**
    of the role policy and that policy. The credential is valid for one hour
@@ -142,21 +175,19 @@ aws-tunnel                (credential_process + SigV4)
    part of the Docker setup; provisioning/approval is external to this PR.
 
 **Requirements**: Docker Compose **2.24.4+**, the existing Docker AWS image,
-a working `aws login --remote --profile aws-mcp-readonly` cache, and an
-existing independently reviewed IAM role (which the optional one-time
-bootstrap above can create). The Compose `!override` YAML tag is a mandatory security
+a working `aws login --remote --profile aws-mcp-readonly` cache, and the
+ephemeral IAM role created by the explicit bootstrap above. The Compose `!override` YAML tag is a mandatory security
 invariant: it **replaces**, rather than merges, the original admin
 credential mount. If Compose does not support it, **stop**; do not remove
 the tag to work around parsing.
 
 ### Activate on an authorized read-only IAM role
 
-When using the **one-command default role bootstrap** above,
-**no `.env.aws` change is necessary**: the broker derives the role ARN from
-the same authenticated AWS account. For an independently provisioned and
-approved custom role only, optionally set
-`AWS_MCP_READ_ROLE_ARN=arn:aws:iam::<ACCOUNT_ID>:role/<APPROVED_ROLE>`
-in the local ignored `.env.aws`.
+**No account ID, role name or ARN needs to be entered in `.env.aws`.**
+The broker reads the private lifecycle record written by the explicit
+bootstrap command and checks the logged-in IAM principal matches.
+Do not set an arbitrary `AWS_MCP_READ_ROLE_ARN`: this deployment only
+accepts its own recorded timestamp role.
 
 Confirm the role and trust policy were independently reviewed before
 applying the runtime override. From the repository root:
@@ -208,14 +239,14 @@ print("Provider:", creds.method)
 print("Admin cache mounted:", Path("/home/awsuser/.aws/config").exists())
 identity = session.client("sts").get_caller_identity()
 assert ":assumed-role/" in identity["Arn"], "Expected STS role session"
-assert "/ChatGPTMcpReadOnlyRole/" in identity["Arn"], "Unexpected role identity"
-print("STS role identity: OK")
+assert "/ReadOnlyIAMRole_" in identity["Arn"], "Unexpected temporary role"
+print("STS temporary role identity: OK")
 print("No credentials printed")
 PY
 ```
 
-**Review the role name above** when using a different role (change the
-assertion to your approved IAM role's name). The expected provider name
+The role name changes on each explicitly bootstrapped lifecycle. The
+expected provider name
 in botocore is normally `custom-process`; `sts:GetCallerIdentity`
 verifies session identity, not the total effective permissions.
 Check the actual tool list after reconnecting ChatGPT (`run_script`,
@@ -244,28 +275,23 @@ continues using an expired in-memory credential set. Neither routine
 renewal nor startup requires deleting a cached-login or role-credential
 volume. A broker crash cannot issue new sessions.
 
-**Rollback**: recreate AWS Tunnel from the baseline Compose (this hides
-`run_script` and restores the original SDK login source, which is
-ADMINISTRATIVE in the current account). For maximum safety, **stop** it
-instead of running baseline MCP under an administrator identity:
-
-```bash
-docker compose --env-file .env.aws -f compose.aws.yaml stop aws-tunnel
-docker compose --env-file .env.aws \
-  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
-  stop aws-credential-broker
-```
+**End the session and remove the temporary role** by running
+`bash scripts/aws-mcp-end-session.sh` (documented above). Do not
+recreate the baseline AWS Tunnel with the administrator login cache:
+it would restore a privileged credential path. Use the cleanup wrapper
+instead; it stops the services before removing the role.
 
 Do **not** use `--remove-orphans`, `down -v` or Docker volume removal.
 The original AWS login credentials remain available to `aws-auth` and
 `aws-credential-broker`, so protect the Docker host and never treat
 compromise of the broker or host as an isolated read-only event.
-The dedicated role must not trust arbitrary principals, allow privilege
+The temporary role must not trust arbitrary principals, allow privilege
 escalation, or expose write paths.
 
 References: [AWS STS AssumeRole session policies](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html),
 [AWS Boto3 credential_process](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html),
 [Docker Compose !override](https://docs.docker.com/reference/compose-file/merge/),
+[IAM role deletion](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_manage_delete.html),
 [AWS managed ReadOnlyAccess](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/ReadOnlyAccess.html).
 
 ## One-time AWS and OpenAI preparation (human administrator)
