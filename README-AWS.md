@@ -34,6 +34,57 @@ Use `AWS_PROFILE=aws-mcp-readonly` only. The proxy is given exactly **one** AWS 
 
 **Explicit operational rules:** No AWS mutation, IAM changes or live service operations are performed automatically. Do not grant write permissions to this role as a convenient workaround. A future write-capable route needs independent review and a separate role, Tunnel and approval path. At-rest access to the Docker volume permits use of its cached console-login credentials; protect Docker administrative access and backups.
 
+## Fast path: one command to provision the IAM role (no console clicks)
+
+If you already have a valid `aws login --remote --profile aws-mcp-readonly`
+session, **you do not have to create or configure the IAM role manually**.
+The repo includes an explicitly invoked, one-shot bootstrap that:
+- Identifies the *current* IAM user using STS `GetCallerIdentity`.
+- Creates the fixed role `ChatGPTMcpReadOnlyRole`, trusting **only that IAM user**.
+- Attaches **only** the AWS-managed `ReadOnlyAccess` policy to the new role.
+- Refuses to overwrite an existing role with a different trust relationship,
+  attached policies, or unexpected inline policy.
+- Never prints session access keys or modifies the existing IAM user.
+- Does not grant write privileges to the role and does not start the MCP.
+
+**Before the first run:** pull the PR #10 branch and build the AWS image.
+Do not merge this draft or start the AWS Tunnel while it is using the
+administrator's original credentials.
+
+```bash
+git fetch origin
+git switch feat/aws-broad-iam-read-api-tools
+git pull --ff-only origin feat/aws-broad-iam-read-api-tools
+docker compose --env-file .env.aws -f compose.aws.yaml build aws-tunnel
+
+# Read-only preview of current identity and target role.
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm --no-deps aws-role-bootstrap
+
+# Only the following invocation creates an IAM role if it is absent.
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm --no-deps aws-role-bootstrap --apply
+```
+
+The tool is **not run automatically** during Compose startup, builds,
+or installation. The `--apply` command is an explicit
+IAM **CreateRole / AttachRolePolicy** operation, so review the preview
+before running it. Administrator authorization is required on the original
+IAM login account. If a same-named role already exists, the script
+validates and **does not modify** it.
+
+After that, the STS Broker automatically derives the approved default role
+ARN from the authenticated account. **No manual account ID, role ARN, or
+additional `.env.aws` setting is required.** The optional
+`AWS_MCP_READ_ROLE_ARN` environment setting is for an independently
+reviewed *non-default* role; never point it at an admin role.
+
+Proceed to the [STS broker activation steps](#activate-on-an-authorized-read-only-iam-role).
+IAM role creation is an AWS account mutation, which has not been executed
+by the repository or its CI. The human operator must review IAM trust,
+permission boundaries, resource policies, organization SCPs and sensitive
+read-data exposure independently before enabling `run_script`.
+
 ## All-service AWS API reads via isolated STS credentials (opt-in)
 
 The baseline `compose.aws.yaml` deliberately leaves
@@ -91,23 +142,24 @@ aws-tunnel                (credential_process + SigV4)
    part of the Docker setup; provisioning/approval is external to this PR.
 
 **Requirements**: Docker Compose **2.24.4+**, the existing Docker AWS image,
-a working `aws login --remote --profile aws-mcp-readonly` cache, and an IAM
-role ARN. The Compose `!override` YAML tag is a mandatory security
+a working `aws login --remote --profile aws-mcp-readonly` cache, and an
+existing independently reviewed IAM role (which the optional one-time
+bootstrap above can create). The Compose `!override` YAML tag is a mandatory security
 invariant: it **replaces**, rather than merges, the original admin
 credential mount. If Compose does not support it, **stop**; do not remove
 the tag to work around parsing.
 
 ### Activate on an authorized read-only IAM role
 
-Set the role ARN (non-secret) in your local ignored `.env.aws`:
+When using the **one-command default role bootstrap** above,
+**no `.env.aws` change is necessary**: the broker derives the role ARN from
+the same authenticated AWS account. For an independently provisioned and
+approved custom role only, optionally set
+`AWS_MCP_READ_ROLE_ARN=arn:aws:iam::<ACCOUNT_ID>:role/<APPROVED_ROLE>`
+in the local ignored `.env.aws`.
 
-```dotenv
-AWS_MCP_READ_ROLE_ARN=arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole
-```
-
-Replace the example account and role with the actual separately approved
-role; do not add admin access keys or tokens to `.env.aws`.
-From the repository root:
+Confirm the role and trust policy were independently reviewed before
+applying the runtime override. From the repository root:
 
 ```bash
 docker compose version
