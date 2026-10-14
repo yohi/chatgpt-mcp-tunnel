@@ -23,6 +23,7 @@ COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-cli
 COPY scripts/aws-tunnel-healthcheck.py /usr/local/bin/aws-tunnel-healthcheck.py
 COPY scripts/aws-mcp-credential-process.py /usr/local/bin/aws-mcp-credential-process.py
 COPY scripts/aws-mcp-credential-broker.py /usr/local/bin/aws-mcp-credential-broker.py
+COPY scripts/aws-mcp-bootstrap-role.py /usr/local/bin/aws-mcp-bootstrap-role.py
 COPY etc/aws-mcp/sts-credential-process.conf /etc/aws-mcp/config
 
 RUN groupadd --gid 10001 awsuser \
