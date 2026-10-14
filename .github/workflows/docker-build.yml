@@ -62,12 +62,12 @@ jobs:
 
           cmd = ["docker", "compose", "--env-file", ".env.aws.example"]
           base = json.loads(subprocess.check_output(
-              [*cmd, "-f", "compose.aws.yaml", "config", "--format", "json"], text=True
+              [*cmd, "-f", "compose.aws.yaml", "--profile", "aws-bootstrap", "config", "--format", "json"], text=True
           ))
           optin = json.loads(subprocess.check_output(
               [*cmd, "-f", "compose.aws.yaml",
                "-f", "compose.aws.api-tools.example.yaml",
-               "config", "--format", "json"], text=True
+               "--profile", "aws-bootstrap", "config", "--format", "json"], text=True
           ))
           original = base["services"]["aws-tunnel"]
           expanded = optin["services"]["aws-tunnel"]
