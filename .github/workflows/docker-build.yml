@@ -50,11 +50,13 @@ jobs:
           assert tunnel.get("network_mode") != "host"
           print("AWS health is internal-only; no published ports")
           '
-      - name: Validate opt-in cross-service API tools (offline)
+      - name: Verify isolated STS role volumes and tools (offline)
+        env:
+          AWS_MCP_READ_ROLE_ARN: arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole
         run: |
           docker compose --env-file .env.aws.example \
             -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
-            --profile aws-auth config --quiet
+            --profile aws-role-init config --quiet
           python3 - <<'PY'
           import json
           import shlex
@@ -71,14 +73,28 @@ jobs:
           ))
           original = base["services"]["aws-tunnel"]
           expanded = optin["services"]["aws-tunnel"]
-          original_args = shlex.split(original["environment"].pop("MCP_COMMAND"))
-          expanded_args = shlex.split(expanded["environment"].pop("MCP_COMMAND"))
-          assert original_args[-1] == "--read-only", "Default must filter unsafe tools"
-          assert expanded_args == original_args[:-1], "Opt-in must only remove the final filter flag"
-          assert original == expanded, "Opt-in must not alter any other AWS container settings"
-          assert expanded["environment"]["AWS_PROFILE"] == "aws-mcp-readonly"
-          assert not expanded.get("ports"), "No host health port should be exposed"
-          print("Default filter preserved; explicit opt-in changes only MCP_COMMAND")
+          source = optin["services"]["aws-credential-broker"]
+          baseline_volumes = {x["target"] for x in original["volumes"]}
+          role_volumes = {x["target"] for x in expanded["volumes"]}
+          broker_volumes = {x["target"] for x in source["volumes"]}
+          assert "/home/awsuser/.aws" in baseline_volumes
+          assert "/home/awsuser/.aws" not in role_volumes, "ADMIN login cache leaked to MCP"
+          assert role_volumes == {"/run/aws-mcp-credentials"}, "Unexpected MCP mount"
+          assert next(x for x in expanded["volumes"] if x["target"] == "/run/aws-mcp-credentials")["read_only"]
+          assert broker_volumes == {"/home/awsuser/.aws", "/run/aws-mcp-credentials"}
+          assert expanded["environment"]["AWS_PROFILE"] == "aws-mcp-sts-readonly"
+          assert expanded["environment"]["AWS_CONFIG_FILE"] == "/etc/aws-mcp/config"
+          assert expanded["environment"]["AWS_SHARED_CREDENTIALS_FILE"] == "/dev/null"
+          assert source["environment"]["AWS_PROFILE"] == "aws-mcp-readonly"
+          default_args = shlex.split(original["environment"]["MCP_COMMAND"])
+          role_args = shlex.split(expanded["environment"]["MCP_COMMAND"])
+          assert default_args[-1] == "--read-only"
+          assert "--read-only" not in role_args
+          assert "--profile" in role_args
+          assert role_args[role_args.index("--profile") + 1] == "aws-mcp-sts-readonly"
+          assert not expanded.get("ports")
+          assert expanded["depends_on"]["aws-credential-broker"]["condition"] == "service_healthy"
+          print("Admin login cache isolated from MCP; role-only STS mount confirmed")
           PY
       - name: Check AWS official Docker Hub CLI image
         run: |
@@ -99,6 +115,9 @@ jobs:
             python -c "import boto3, awscrt; print(boto3.__version__); assert tuple(map(int, boto3.__version__.split(chr(46))[:2])) >= (1, 41)"
             tunnel-client --version
             python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
+            python -m ast /usr/local/bin/aws-mcp-credential-broker.py >/dev/null
+            python -m ast /usr/local/bin/aws-mcp-credential-process.py >/dev/null
+            test -s /etc/aws-mcp/config
           '
       - name: Integration-test AWS SSO volume ownership (offline)
         env:
@@ -114,6 +133,30 @@ jobs:
             -c 'test -w /home/awsuser/.aws && touch /home/awsuser/.aws/.ci-probe && rm /home/awsuser/.aws/.ci-probe'
           # Clean up only this unique, CI-owned volume (never user credentials).
           docker volume rm "${COMPOSE_PROJECT_NAME}_aws-sso-data"
+      - name: Offline STS role process tests in AWS image
+        run: |
+          docker run --rm --entrypoint python \
+            -v "${PWD}/tests:/tests:ro" \
+            chatgpt-aws-mcp-tunnel:ci \
+            -m unittest discover -s /tests -p test_aws_sts_isolation.py -v
+      - name: Integration-test role-only credential volume ownership (offline)
+        env:
+          AWS_MCP_READ_ROLE_ARN: arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole
+          COMPOSE_PROJECT_NAME: aws-role-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          docker tag chatgpt-aws-mcp-tunnel:ci chatgpt-aws-mcp-tunnel:local
+          docker compose --env-file .env.aws.example \
+            -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+            run --rm --no-deps aws-role-init
+          docker compose --env-file .env.aws.example \
+            -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+            run --rm --no-deps --entrypoint python aws-tunnel \
+            -c 'import os, pathlib; p=pathlib.Path("/run/aws-mcp-credentials"); assert p.is_dir(); assert not os.access(p, os.W_OK); assert not pathlib.Path("/home/awsuser/.aws/config").exists()'
+          docker compose --env-file .env.aws.example \
+            -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+            run --rm --no-deps --entrypoint python aws-credential-broker \
+            -c 'from pathlib import Path; p=Path("/run/aws-mcp-credentials"); assert p.is_dir() and p.stat().st_uid == 10001; p.joinpath(".ci-probe").write_text("ok"); p.joinpath(".ci-probe").unlink()'
+          docker volume rm "${COMPOSE_PROJECT_NAME}_aws-mcp-role-credentials"
       - name: Ensure local-only override stays ignored
         run: |
           touch compose.override.yaml .env.aws
