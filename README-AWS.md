@@ -34,6 +34,102 @@ Use `AWS_PROFILE=aws-mcp-readonly` only. The proxy is given exactly **one** AWS 
 
 **Explicit operational rules:** No AWS mutation, IAM changes or live service operations are performed automatically. Do not grant write permissions to this role as a convenient workaround. A future write-capable route needs independent review and a separate role, Tunnel and approval path. At-rest access to the Docker volume permits use of its cached console-login credentials; protect Docker administrative access and backups.
 
+## Opt in to AWS API reads across services (NOT EC2-only)
+
+By default, `mcp-proxy-for-aws-cli --read-only` only **advertises MCP tools annotated
+`readOnlyHint=true`**. Because the managed AWS MCP Server's generic
+`run_script` can invoke both read and write APIs, that tool is **hidden** by
+this setting — even an EC2 `DescribeInstances` call cannot be initiated
+through ChatGPT. This is a **whole-tool visibility filter**, not an
+AWS API operation-level policy.
+
+To ask ChatGPT for resource inventory, diagnosis and configuration across
+**all supported AWS services** (EC2, ECS, EKS, RDS, Lambda, S3, IAM, CloudWatch,
+etc.), AWS managed MCP Server uses the generic `run_script` tool. The script
+calls AWS APIs using `call_boto3`; AWS evaluates the downstream API's
+permissions using the SigV4-authenticated IAM principal.
+
+**Security boundary:** Enabling this tool necessarily exposes a
+*write-capable* generic tool to the model. There is no claim that it becomes
+read-only just because the profile is named `aws-mcp-readonly` or prompts say
+"read-only." **AWS IAM is the enforcement layer.** Do not apply this override
+until the following preconditions have been verified for the actual logged-in
+principal, *not* just inferred from a profile name:
+
+1. The session uses a **dedicated non-administrative IAM role/user** whose
+   **effective permissions** allow only the intended read operations. For
+   broad initial coverage, AWS's managed `ReadOnlyAccess` policy is an
+   available baseline; it is intentionally broad (including reading some
+   sensitive data), can evolve over time, and does **not** mean every
+   conceivable "read" API is allowed. Tightly scope it when possible.
+2. Review **all** effective grants and restrictions: identity-based policies,
+   groups, attached/inline policies, permission boundaries, relevant
+   organization SCPs and resource policies, assumed-role/session policies.
+   An additional write `Allow` can defeat the read-only assumption.
+   `sts:GetCallerIdentity` proves identity, **not effective permissions**.
+3. Independently validate representative read actions are allowed and
+   representative write actions (including IAM policy changes, tagging,
+   service configuration, and data writes) are denied. Use IAM policy
+   simulation/inspection through a separately authorized administrator
+   where appropriate; **do not perform live mutations** as acceptance tests.
+   A few simulated calls cannot exhaustively prove every service API.
+4. Restrict the AWS Tunnel to trusted ChatGPT users, review sensitive
+   read-data exposure, and enable CloudTrail auditing. For database and other
+   data-plane APIs, IAM read-only may not enforce query semantics (e.g. SQL
+   `ExecuteStatement`): use a dedicated read-only database user and review
+   the necessary IAM permissions separately.
+
+After approval of those conditions, explicitly opt into the all-service API
+tools **without changing the normal default**:
+
+```bash
+# Confirm the current IAM identity; this does NOT prove read-only policy.
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm aws-auth sts get-caller-identity --profile aws-mcp-readonly
+
+# Preview opt-in without touching the running containers or credentials.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml config --quiet
+
+# Apply ONLY after independent IAM read-only authorization review.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  up -d --no-deps --force-recreate aws-tunnel
+```
+
+The override only replaces the AWS `MCP_COMMAND` with an otherwise identical
+SigV4 proxy command **without `--read-only`**. It does not add another AWS
+profile, change the endpoint/regions, create AWS resources, alter cached
+credentials, or change the Atlassian Tunnel. Once reconnected, verify that
+ChatGPT discovers the **`run_script`** tool (the external MCP name may be
+prefixed `aws___`). Then request a non-mutating cross-service inventory;
+treat any `AccessDenied` as a reason to inspect IAM, **not** as a reason to
+grant broad write access. Service/region-specific APIs, quotas, SCPs, and
+resource policies still constrain actual read coverage.
+
+**Rollback immediately** if the identity's effective read-only policy cannot
+be established:
+
+```bash
+# Recreate only AWS Tunnel with the default annotation-filtered tool set.
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  up -d --no-deps --force-recreate aws-tunnel
+```
+
+Do not use `--remove-orphans`, `down -v` or delete `aws-sso-data`.
+Do not use this opt-in with your everyday IAM user if it retains write
+permissions. A prompt asking for reads, IAM profile naming, the proxy
+`readOnlyHint`, and SDK method-name checks alone are **not** security
+boundaries. If you require enforcement *before* the AWS API call rather
+than at IAM, introduce a separately reviewed and tested
+operation-level policy gateway; it must not be confused with the proxy's
+existing whole-tool `--read-only` filter.
+
+References: [AWS MCP Server IAM authorization](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/security_iam_service-with-iam.html),
+[AWS managed ReadOnlyAccess](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/ReadOnlyAccess.html),
+[AWS MCP Proxy flags](https://github.com/aws/mcp-proxy-for-aws),
+[AWS MCP tools](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/mcp-server.html).
+
 ## One-time AWS and OpenAI preparation (human administrator)
 
 1. **No IAM Identity Center setup is necessary.** Have an AWS administrator arrange a dedicated IAM console identity or suitable IAM-federated role with only the required AWS read permissions, plus `SignInLocalDevelopmentAccess` to enable `aws login`. Confirm the role is not able to mutate resources or escalate its own privileges. Do not use root or an existing admin console identity as a shortcut.
