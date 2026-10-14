@@ -30,6 +30,21 @@ REFRESH_SECONDS = 1200
 RETRY_SECONDS = 60
 ROLE_ARN_PATTERN = re.compile(r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$")
 
+DEFAULT_ROLE_NAME = "ChatGPTMcpReadOnlyRole"
+SOURCE_USER_PATTERN = re.compile(
+    r"^arn:(aws|aws-us-gov|aws-cn):iam::([0-9]{12}):user/.+$"
+)
+
+
+def derive_role_arn():
+    """Resolve the fixed, bootstrap-managed role in the logged-in account."""
+    identity = boto3.Session(profile_name=SOURCE_PROFILE).client("sts").get_caller_identity()
+    match = SOURCE_USER_PATTERN.fullmatch(identity.get("Arn", ""))
+    if not match or match.group(2) != identity.get("Account"):
+        raise ValueError("source login identity must be an IAM user")
+    return f"arn:{match.group(1)}:iam::{match.group(2)}:role/{DEFAULT_ROLE_NAME}"
+
+
 
 def check_destination(directory):
     info = directory.lstat()
@@ -114,9 +129,9 @@ def acquire(role_arn):
 
 
 def main():
-    role_arn = os.environ.get("AWS_MCP_READ_ROLE_ARN", "")
-    if not ROLE_ARN_PATTERN.fullmatch(role_arn):
-        print("AWS MCP broker: configure a valid dedicated read-only IAM Role ARN", file=sys.stderr)
+    configured_role_arn = os.environ.get("AWS_MCP_READ_ROLE_ARN", "")
+    if configured_role_arn and not ROLE_ARN_PATTERN.fullmatch(configured_role_arn):
+        print("AWS MCP broker: invalid dedicated read-only IAM Role ARN", file=sys.stderr)
         return 2
     try:
         check_destination(STORE)
@@ -126,6 +141,7 @@ def main():
 
     while True:
         try:
+            role_arn = configured_role_arn or derive_role_arn()
             document = acquire(role_arn)
             atomic_publish(document)
             print("AWS MCP broker: STS read-only session renewed", flush=True)
