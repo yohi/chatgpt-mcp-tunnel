@@ -125,7 +125,7 @@ jobs:
             python -m ast /usr/local/bin/aws-tunnel-healthcheck.py >/dev/null
             python -m ast /usr/local/bin/aws-mcp-credential-broker.py >/dev/null
             python -m ast /usr/local/bin/aws-mcp-bootstrap-role.py >/dev/null
-            python -c "from pathlib import Path; assert Path('/usr/local/bin/aws-mcp-bootstrap-role.py').exists()"
+            test -s /usr/local/bin/aws-mcp-bootstrap-role.py
             python -m ast /usr/local/bin/aws-mcp-credential-process.py >/dev/null
             test -s /etc/aws-mcp/config
           '
