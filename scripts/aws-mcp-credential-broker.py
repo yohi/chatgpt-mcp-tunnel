@@ -30,20 +30,40 @@ REFRESH_SECONDS = 1200
 RETRY_SECONDS = 60
 ROLE_ARN_PATTERN = re.compile(r"^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$")
 
-DEFAULT_ROLE_NAME = "ChatGPTMcpReadOnlyRole"
+ROLE_STATE = Path("/home/awsuser/.aws/chatgpt-mcp-iam-role.json")
+TEMP_ROLE_NAME_RE = re.compile(r"^ReadOnlyIAMRole_[0-9]{15}$")
 SOURCE_USER_PATTERN = re.compile(
     r"^arn:(aws|aws-us-gov|aws-cn):iam::([0-9]{12}):user/.+$"
 )
 
 
 def derive_role_arn():
-    """Resolve the fixed, bootstrap-managed role in the logged-in account."""
+    """Read only the explicitly recorded bootstrap role for this source user."""
+    directory = ROLE_STATE.parent.lstat()
+    record_info = ROLE_STATE.lstat()
+    if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid()
+            or directory.st_mode & 0o077
+            or not stat.S_ISREG(record_info.st_mode)
+            or record_info.st_uid != os.geteuid()
+            or record_info.st_mode & 0o077):
+        raise ValueError("IAM role lifecycle state has unsafe permissions")
+    with ROLE_STATE.open(encoding="utf-8") as source:
+        state = json.load(source)
+    if (not isinstance(state, dict) or state.get("version") != 1
+            or not isinstance(state.get("role_name"), str)
+            or not TEMP_ROLE_NAME_RE.fullmatch(state["role_name"])
+            or not isinstance(state.get("role_id"), str)
+            or not state["role_id"]):
+        raise ValueError("missing or invalid temporary role ownership state")
     identity = boto3.Session(profile_name=SOURCE_PROFILE).client("sts").get_caller_identity()
     match = SOURCE_USER_PATTERN.fullmatch(identity.get("Arn", ""))
-    if not match or match.group(2) != identity.get("Account"):
-        raise ValueError("source login identity must be an IAM user")
-    return f"arn:{match.group(1)}:iam::{match.group(2)}:role/{DEFAULT_ROLE_NAME}"
-
+    if (not match or match.group(2) != identity.get("Account")
+            or state.get("source_arn") != identity.get("Arn")):
+        raise ValueError("role owner does not match source login IAM user")
+    role_arn = f"arn:{match.group(1)}:iam::{match.group(2)}:role/{state['role_name']}"
+    if state.get("role_arn") != role_arn:
+        raise ValueError("temporary IAM role ARN mismatch")
+    return role_arn
 
 
 def check_destination(directory):
@@ -129,10 +149,7 @@ def acquire(role_arn):
 
 
 def main():
-    configured_role_arn = os.environ.get("AWS_MCP_READ_ROLE_ARN", "")
-    if configured_role_arn and not ROLE_ARN_PATTERN.fullmatch(configured_role_arn):
-        print("AWS MCP broker: invalid dedicated read-only IAM Role ARN", file=sys.stderr)
-        return 2
+
     try:
         check_destination(STORE)
     except (OSError, ValueError):
@@ -141,7 +158,7 @@ def main():
 
     while True:
         try:
-            role_arn = configured_role_arn or derive_role_arn()
+            role_arn = derive_role_arn()
             document = acquire(role_arn)
             atomic_publish(document)
             print("AWS MCP broker: STS read-only session renewed", flush=True)
