@@ -1,0 +1,30 @@
+# Opt-in: AWS managed MCP API tools, including run_script.
+#
+# SECURITY GATE (human/operator):
+# Only apply this override AFTER verifying that the exact credentials in
+# aws-mcp-readonly have effective read-only IAM permissions across the
+# required AWS services (including all attached user/group policies,
+# permission boundaries, organization SCPs, and resource policies).
+#
+# Without --read-only, the proxy may ADVERTISE write-capable tools.
+# Tool arguments and prompts are NOT authorization controls. IAM enforces
+# the downstream service actions; never use an admin/power user credential.
+# This override does NOT make run_script intrinsically read-only.
+#
+# Opt in explicitly:
+# docker compose --env-file .env.aws -f compose.aws.yaml \
+#   -f compose.aws.api-tools.example.yaml up -d --no-deps --force-recreate aws-tunnel
+#
+# Rollback by omitting this file on the next recreation:
+# docker compose --env-file .env.aws -f compose.aws.yaml \
+#   up -d --no-deps --force-recreate aws-tunnel
+services:
+  aws-tunnel:
+    environment:
+      MCP_COMMAND: >-
+        mcp-proxy-for-aws-cli
+        https://aws-mcp.${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}.api.aws/mcp
+        --service aws-mcp
+        --region ${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}
+        --profile aws-mcp-readonly
+        --metadata AWS_REGION=${AWS_MCP_TARGET_REGION:-ap-northeast-1}
