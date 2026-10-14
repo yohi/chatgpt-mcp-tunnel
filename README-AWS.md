@@ -34,7 +34,7 @@ Use `AWS_PROFILE=aws-mcp-readonly` only. The proxy is given exactly **one** AWS 
 
 **Explicit operational rules:** No AWS mutation, IAM changes or live service operations are performed automatically. Do not grant write permissions to this role as a convenient workaround. A future write-capable route needs independent review and a separate role, Tunnel and approval path. At-rest access to the Docker volume permits use of its cached console-login credentials; protect Docker administrative access and backups.
 
-## Temporary IAM role lifecycle: timestamped creation and guaranteed end-of-use cleanup
+## Temporary IAM role lifecycle: timestamped creation and verified end-of-use cleanup
 
 **Do not create a permanent IAM role for this project.** The lifecycle
 bootstrap generates a unique role name using the requested
