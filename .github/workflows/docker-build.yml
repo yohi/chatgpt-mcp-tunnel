@@ -51,8 +51,6 @@ jobs:
           print("AWS health is internal-only; no published ports")
           '
       - name: Verify isolated STS role volumes and tools (offline)
-        env:
-          AWS_MCP_READ_ROLE_ARN: arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole
         run: |
           docker compose --env-file .env.aws.example \
             -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
