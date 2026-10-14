@@ -2,8 +2,7 @@
 #
 # Requires Docker Compose >= 2.24.4 for !override (critical to replace the
 # original admin login cache volume, NEVER append to the original volume).
-# Prerequisites: separately provisioned, independently reviewed AWS read-only
-# role + trust policy; AWS_MCP_READ_ROLE_ARN in .env.aws.
+# Prerequisites: explicitly bootstrapped temporary IAM role, recorded in\n# the AWS auth volume as lifecycle state. The broker will not guess a role.
 #
 # Do NOT mount aws-sso-data in aws-tunnel. The admin console-login cache is
 # available ONLY to aws-auth and aws-credential-broker.
@@ -68,7 +67,6 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
       AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
-      AWS_MCP_READ_ROLE_ARN: "${AWS_MCP_READ_ROLE_ARN:-}"
     healthcheck:
       test: ["CMD", "python", "/usr/local/bin/aws-mcp-credential-process.py", "--check"]
       interval: 30s
