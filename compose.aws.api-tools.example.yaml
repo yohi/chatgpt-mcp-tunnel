@@ -2,7 +2,8 @@
 #
 # Requires Docker Compose >= 2.24.4 for !override (critical to replace the
 # original admin login cache volume, NEVER append to the original volume).
-# Prerequisites: explicitly bootstrapped temporary IAM role, recorded in\n# the AWS auth volume as lifecycle state. The broker will not guess a role.
+# Prerequisites: explicitly bootstrapped temporary IAM role, recorded in
+# the AWS auth volume as lifecycle state. The broker will not guess a role.
 #
 # Do NOT mount aws-sso-data in aws-tunnel. The admin console-login cache is
 # available ONLY to aws-auth and aws-credential-broker.
