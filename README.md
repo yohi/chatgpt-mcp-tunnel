@@ -145,6 +145,107 @@ Tunnel ID and an independent credential cache volume. It also defaults to
 See **[AWS setup and security walkthrough](README-AWS.md)**.
 Do not use the Atlassian `.env` for the AWS service.
 
+### AWS day-to-day use: login, renewal, and recovery
+
+Run every command below **from the repository root**. AWS uses `.env.aws`,
+`compose.aws.yaml`, profile `aws-mcp-readonly`, and a **separate** cached-credential
+Docker named volume (`aws-sso-data`; historical name). This is AWS CLI
+**console login** via `aws login`; IAM Identity Center, `aws configure sso`,
+`aws sso login`, host AWS CLI, and static IAM access keys are **not required**.
+
+AWS CLI refreshes its temporary credentials during a valid login session, but
+the overall console-login session lasts **up to 12 hours** (or the shorter
+configured session duration). Once it expires, **re-authenticate interactively**.
+This project does not bypass MFA or automatically renew an expired browser
+login session.
+
+**1. Check the existing AWS session (read-only).**
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm aws-auth sts get-caller-identity \
+  --profile aws-mcp-readonly
+```
+
+A successful response shows the AWS account and principal ARN. Confirm it is
+the intended **dedicated read-only identity**. This call establishes identity,
+**not** that its effective IAM permissions are read-only.
+
+**2. Sign in again when the session expires or login refresh is required.**
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm aws-auth login --remote \
+  --profile aws-mcp-readonly
+```
+
+Open the printed AWS sign-in URL **in your browser**, authenticate with the
+dedicated IAM console identity, and, when prompted, **copy the authorization
+code shown in the browser back into the running terminal**. Do not paste the
+URL, code, account ID, tokens, or `.env.aws` into issues, chat, or logs.
+After successful login, **repeat step 1** to verify the expected principal.
+Do not switch to root or an administrator account to fix login permissions.
+
+**3. Restart only the AWS Tunnel if ChatGPT continues to use stale credentials.**
+
+The AWS CLI helper and Python MCP proxy share the same named volume. A fresh
+login normally updates that cache; a long-lived MCP proxy may need a restart
+to pick up the renewed session.
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  restart aws-tunnel
+```
+
+This is **not required after every login** if AWS tool requests already work.
+It does not restart Atlassian and does not delete the AWS credential volume.
+Then reconnect or retry the AWS custom MCP connection in ChatGPT.
+
+**4. Inspect health and MCP initialization after any connection failure.**
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml ps
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  logs --since=15m --tail=120 aws-tunnel
+
+# Detailed health endpoints are loopback-only INSIDE the AWS container.
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  exec -T aws-tunnel python -c '
+import json
+from urllib.request import urlopen
+for path in ("/health/control-plane", "/health/mcp"):
+    print("\n=== " + path + " ===")
+    with urlopen("http://127.0.0.1:18081" + path, timeout=5) as response:
+        print(json.dumps(json.load(response), indent=2))
+'
+```
+
+`/health/control-plane` **`status: ok`** confirms OpenAI polling;
+`/health/mcp` **`child_state: running`** confirms the local MCP child process.
+Neither alone proves AWS MCP authorization. Before the first ChatGPT MCP
+`initialize` / `tools/list`, `status: unknown` and `state: not_observed`
+can be expected. Following an actual ChatGPT MCP connection, inspect
+`initialize.ok` and `tools_list.ok` for protocol evidence.
+
+**Troubleshooting without destructive workarounds:**
+
+| Symptom | Safe response |
+| --- | --- |
+| `ExpiredToken`, `LoginRefreshRequired`, or expired AWS console session | Use step 2, verify the identity with step 1, and restart only `aws-tunnel` if needed. |
+| ChatGPT reports MCP setup failure / invalid `initialize` or `tools/list` | Check step 4 and AWS CLI session expiry; OpenAI `control-plane.status: ok` alone does not establish MCP initialization. |
+| ChatGPT reports that the MCP Tunnel is unreachable | Check `ps`, `control-plane`, the AWS-specific Tunnel ID in `.env.aws`, and local logs. |
+| Host `curl http://127.0.0.1:18081/health/mcp` fails | **Expected:** AWS diagnostic port is not published to the host. Use the container-internal command from step 4. |
+| `Found orphan containers (...-tunnel-1)` warning | Expected because Atlassian uses a different Compose file with the same project name. **Never use `--remove-orphans`.** |
+| AWS `AccessDenied` | Verify the dedicated principal's actual IAM permissions. Do not grant AdministratorAccess or disable `--read-only` to bypass it. |
+
+**Preserve credentials and the working Atlassian Tunnel:** Do not run
+`docker compose down -v`, `docker volume rm ...aws-sso-data`, or
+`--remove-orphans` for routine renewal or diagnosis. The AWS cache is
+persistent, but its presence does not prevent expiry of the login session.
+For first-time configuration, security constraints, and additional
+troubleshooting, see [README-AWS.md](README-AWS.md) and
+[AWS CLI console login documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sign-in.html).
+
 ## Upstream references
 
 - [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
