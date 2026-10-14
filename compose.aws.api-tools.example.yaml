@@ -68,7 +68,7 @@ services:
       PYTHONDONTWRITEBYTECODE: "1"
       AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
-      AWS_MCP_READ_ROLE_ARN: "${AWS_MCP_READ_ROLE_ARN:?Set the independently approved read-only role ARN in .env.aws}"
+      AWS_MCP_READ_ROLE_ARN: "${AWS_MCP_READ_ROLE_ARN:-}"
     healthcheck:
       test: ["CMD", "python", "/usr/local/bin/aws-mcp-credential-process.py", "--check"]
       interval: 30s
