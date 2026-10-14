@@ -34,101 +34,187 @@ Use `AWS_PROFILE=aws-mcp-readonly` only. The proxy is given exactly **one** AWS 
 
 **Explicit operational rules:** No AWS mutation, IAM changes or live service operations are performed automatically. Do not grant write permissions to this role as a convenient workaround. A future write-capable route needs independent review and a separate role, Tunnel and approval path. At-rest access to the Docker volume permits use of its cached console-login credentials; protect Docker administrative access and backups.
 
-## Opt in to AWS API reads across services (NOT EC2-only)
+## All-service AWS API reads via isolated STS credentials (opt-in)
 
-By default, `mcp-proxy-for-aws-cli --read-only` only **advertises MCP tools annotated
-`readOnlyHint=true`**. Because the managed AWS MCP Server's generic
-`run_script` can invoke both read and write APIs, that tool is **hidden** by
-this setting — even an EC2 `DescribeInstances` call cannot be initiated
-through ChatGPT. This is a **whole-tool visibility filter**, not an
-AWS API operation-level policy.
+The baseline `compose.aws.yaml` deliberately leaves
+`mcp-proxy-for-aws-cli --read-only` enabled. Because AWS's generic
+`run_script` can invoke **both** read and write APIs, its MCP tool
+annotation hides it completely; this prevents ChatGPT from using even
+EC2 `DescribeInstances` through that tool. This is a **tool visibility
+filter**, not granular service-level authorization.
 
-To ask ChatGPT for resource inventory, diagnosis and configuration across
-**all supported AWS services** (EC2, ECS, EKS, RDS, Lambda, S3, IAM, CloudWatch,
-etc.), AWS managed MCP Server uses the generic `run_script` tool. The script
-calls AWS APIs using `call_boto3`; AWS evaluates the downstream API's
-permissions using the SigV4-authenticated IAM principal.
+For an AWS-wide read API inventory (EC2, ECS, S3, Lambda, RDS, IAM,
+CloudWatch, etc.), `compose.aws.api-tools.example.yaml` exposes
+`run_script` **only with a separate STS AssumeRole credential boundary**.
+This is a replacement for the earlier unsafe override that used the
+administrator's login credentials directly.
 
-**Security boundary:** Enabling this tool necessarily exposes a
-*write-capable* generic tool to the model. There is no claim that it becomes
-read-only just because the profile is named `aws-mcp-readonly` or prompts say
-"read-only." **AWS IAM is the enforcement layer.** Do not apply this override
-until the following preconditions have been verified for the actual logged-in
-principal, *not* just inferred from a profile name:
+```text
+aws-auth                   (console login as existing IAM user)
+    └── aws-sso-data             ← admin login cache
+              │
+              ▼
+aws-credential-broker     (boto3 login → sts:AssumeRole)
+    ├── AWS-managed ReadOnlyAccess SESSION POLICY (intersection)
+    └── aws-mcp-role-credentials  ← atomic STS role credentials (0600)
+              │                         (separate named Docker volume)
+              ▼                         (read-only mount)
+aws-tunnel                (credential_process + SigV4)
+    ├── NO aws-sso-data mount
+    ├── NO AWS login source profile
+    └── MCP run_script → AWS API (IAM role/session policy enforcement)
+```
 
-1. The session uses a **dedicated non-administrative IAM role/user** whose
-   **effective permissions** allow only the intended read operations. For
-   broad initial coverage, AWS's managed `ReadOnlyAccess` policy is an
-   available baseline; it is intentionally broad (including reading some
-   sensitive data), can evolve over time, and does **not** mean every
-   conceivable "read" API is allowed. Tightly scope it when possible.
-2. Review **all** effective grants and restrictions: identity-based policies,
-   groups, attached/inline policies, permission boundaries, relevant
-   organization SCPs and resource policies, assumed-role/session policies.
-   An additional write `Allow` can defeat the read-only assumption.
-   `sts:GetCallerIdentity` proves identity, **not effective permissions**.
-3. Independently validate representative read actions are allowed and
-   representative write actions (including IAM policy changes, tagging,
-   service configuration, and data writes) are denied. Use IAM policy
-   simulation/inspection through a separately authorized administrator
-   where appropriate; **do not perform live mutations** as acceptance tests.
-   A few simulated calls cannot exhaustively prove every service API.
-4. Restrict the AWS Tunnel to trusted ChatGPT users, review sensitive
-   read-data exposure, and enable CloudTrail auditing. For database and other
-   data-plane APIs, IAM read-only may not enforce query semantics (e.g. SQL
-   `ExecuteStatement`): use a dedicated read-only database user and review
-   the necessary IAM permissions separately.
+**Trust and authorization prerequisites (operator / IAM owner)**
 
-After approval of those conditions, explicitly opt into the all-service API
-tools **without changing the normal default**:
+1. Provision an independently reviewed IAM role such as
+   `ChatGPTMcpReadOnlyRole`. Its **trust policy** must permit precisely the
+   intended human IAM principal to call `sts:AssumeRole`. Its **permissions**
+   policy should grant `arn:aws:iam::aws:policy/ReadOnlyAccess` or a
+   narrower, reviewed set of read actions; don't attach administrator
+   permissions. The source login user's existing grants are **not
+   inherited** by the assumed role.
+2. The broker also passes AWS-managed `ReadOnlyAccess` as an **STS managed
+   session policy**, so the role session grants only the **intersection**
+   of the role policy and that policy. The credential is valid for one hour
+   and is reissued every 20 minutes, while source `aws login` is valid.
+   Do not assume this is a universal deny guarantee against resource-based
+   policies granting directly to session principals, cross-account trust,
+   or data-plane query semantics. Review the role trust, policies, resource
+   policies, boundaries and Organizations SCPs separately.
+3. Restrict the OpenAI AWS Tunnel to trusted users, enable audit logging and
+   review access to sensitive data. IAM `ReadOnlyAccess` is broad and not
+   guaranteed to include every conceivable read API. A reader may still
+   fetch customer data, secret metadata and some data-plane records.
+4. **Never** rely solely on the words "read-only" in a profile, natural
+   language prompts, or an MCP annotation. Do not mutate IAM/STS/roles as
+   part of the Docker setup; provisioning/approval is external to this PR.
+
+**Requirements**: Docker Compose **2.24.4+**, the existing Docker AWS image,
+a working `aws login --remote --profile aws-mcp-readonly` cache, and an IAM
+role ARN. The Compose `!override` YAML tag is a mandatory security
+invariant: it **replaces**, rather than merges, the original admin
+credential mount. If Compose does not support it, **stop**; do not remove
+the tag to work around parsing.
+
+### Activate on an authorized read-only IAM role
+
+Set the role ARN (non-secret) in your local ignored `.env.aws`:
+
+```dotenv
+AWS_MCP_READ_ROLE_ARN=arn:aws:iam::123456789012:role/ChatGPTMcpReadOnlyRole
+```
+
+Replace the example account and role with the actual separately approved
+role; do not add admin access keys or tokens to `.env.aws`.
+From the repository root:
 
 ```bash
-# Confirm the current IAM identity; this does NOT prove read-only policy.
-docker compose --env-file .env.aws -f compose.aws.yaml \
-  run --rm aws-auth sts get-caller-identity --profile aws-mcp-readonly
+docker compose version
 
-# Preview opt-in without touching the running containers or credentials.
-docker compose --env-file .env.aws \
-  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml config --quiet
-
-# Apply ONLY after independent IAM read-only authorization review.
+# Validate the effective config and inspect it BEFORE touching containers.
 docker compose --env-file .env.aws \
   -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
-  up -d --no-deps --force-recreate aws-tunnel
+  config --quiet
+
+# One-time ownership initialization for the *role-only* credential volume.
+# It never alters the original AWS login cache.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  run --rm --no-deps aws-role-init
+
+# Start the independent STS role credential broker.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  up -d --no-deps aws-credential-broker
+
+# See only role credential health, not access keys or tokens.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  ps
+
+# Start AWS Tunnel with role-only credentials and broad API tool discovery.
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  up -d --force-recreate aws-tunnel
 ```
 
-The override only replaces the AWS `MCP_COMMAND` with an otherwise identical
-SigV4 proxy command **without `--read-only`**. It does not add another AWS
-profile, change the endpoint/regions, create AWS resources, alter cached
-credentials, or change the Atlassian Tunnel. Once reconnected, verify that
-ChatGPT discovers the **`run_script`** tool (the external MCP name may be
-prefixed `aws___`). Then request a non-mutating cross-service inventory;
-treat any `AccessDenied` as a reason to inspect IAM, **not** as a reason to
-grant broad write access. Service/region-specific APIs, quotas, SCPs, and
-resource policies still constrain actual read coverage.
-
-**Rollback immediately** if the identity's effective read-only policy cannot
-be established:
+Then verify isolation without printing any credential values:
 
 ```bash
-# Recreate only AWS Tunnel with the default annotation-filtered tool set.
-docker compose --env-file .env.aws -f compose.aws.yaml \
-  up -d --no-deps --force-recreate aws-tunnel
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  exec -T aws-tunnel python - <<'PY'
+import boto3
+import os
+from pathlib import Path
+session = boto3.Session(profile_name="aws-mcp-sts-readonly")
+creds = session.get_credentials()
+assert creds is not None and creds.method == "custom-process", "role credential_process not in use"
+print("Profile:", session.profile_name)
+print("Provider:", creds.method)
+print("Admin cache mounted:", Path("/home/awsuser/.aws/config").exists())
+identity = session.client("sts").get_caller_identity()
+assert ":assumed-role/" in identity["Arn"], "Expected STS role session"
+assert "/ChatGPTMcpReadOnlyRole/" in identity["Arn"], "Unexpected role identity"
+print("STS role identity: OK")
+print("No credentials printed")
+PY
 ```
 
-Do not use `--remove-orphans`, `down -v` or delete `aws-sso-data`.
-Do not use this opt-in with your everyday IAM user if it retains write
-permissions. A prompt asking for reads, IAM profile naming, the proxy
-`readOnlyHint`, and SDK method-name checks alone are **not** security
-boundaries. If you require enforcement *before* the AWS API call rather
-than at IAM, introduce a separately reviewed and tested
-operation-level policy gateway; it must not be confused with the proxy's
-existing whole-tool `--read-only` filter.
+**Review the role name above** when using a different role (change the
+assertion to your approved IAM role's name). The expected provider name
+in botocore is normally `custom-process`; `sts:GetCallerIdentity`
+verifies session identity, not the total effective permissions.
+Check the actual tool list after reconnecting ChatGPT (`run_script`,
+possibly prefixed `aws___`), then exercise non-mutating API calls.
 
-References: [AWS MCP Server IAM authorization](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/security_iam_service-with-iam.html),
-[AWS managed ReadOnlyAccess](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/ReadOnlyAccess.html),
-[AWS MCP Proxy flags](https://github.com/aws/mcp-proxy-for-aws),
-[AWS MCP tools](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/mcp-server.html).
+### Renewal, fail-closed operation, and rollback
+
+The broker alone can access the admin login cache. Its STS session is
+refreshed every 20 minutes; the MCP child uses AWS SDK
+`credential_process` with the **Expiration** field, which causes
+credentials to be re-read before expiry. The broker writes an atomic,
+owner-only 0600 file on a private volume. If source `aws login` expires
+(up to 12h), re-run:
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml \
+  run --rm aws-auth login --remote --profile aws-mcp-readonly
+```
+
+Broker refresh retries after 60 seconds. If requests are already failing,
+verify the broker with `ps` and `logs --tail=100 aws-credential-broker`
+before retrying the custom MCP connection. The MCP will reject absent,
+malformed or nearly expired STS credentials, rather than use the admin
+source profile. Restart only the AWS Tunnel if the Python MCP proxy
+continues using an expired in-memory credential set. Neither routine
+renewal nor startup requires deleting a cached-login or role-credential
+volume. A broker crash cannot issue new sessions.
+
+**Rollback**: recreate AWS Tunnel from the baseline Compose (this hides
+`run_script` and restores the original SDK login source, which is
+ADMINISTRATIVE in the current account). For maximum safety, **stop** it
+instead of running baseline MCP under an administrator identity:
+
+```bash
+docker compose --env-file .env.aws -f compose.aws.yaml stop aws-tunnel
+docker compose --env-file .env.aws \
+  -f compose.aws.yaml -f compose.aws.api-tools.example.yaml \
+  stop aws-credential-broker
+```
+
+Do **not** use `--remove-orphans`, `down -v` or Docker volume removal.
+The original AWS login credentials remain available to `aws-auth` and
+`aws-credential-broker`, so protect the Docker host and never treat
+compromise of the broker or host as an isolated read-only event.
+The dedicated role must not trust arbitrary principals, allow privilege
+escalation, or expose write paths.
+
+References: [AWS STS AssumeRole session policies](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html),
+[AWS Boto3 credential_process](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html),
+[Docker Compose !override](https://docs.docker.com/reference/compose-file/merge/),
+[AWS managed ReadOnlyAccess](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/ReadOnlyAccess.html).
 
 ## One-time AWS and OpenAI preparation (human administrator)
 
