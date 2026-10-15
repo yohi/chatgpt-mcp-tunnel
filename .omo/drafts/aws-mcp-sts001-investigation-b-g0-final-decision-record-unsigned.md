@@ -39,12 +39,12 @@ Repository `yohi/chatgpt-mcp-tunnel`、integration branch `feat/aws-broad-iam-re
 | C | [R1 changes](aws-mcp-sts001-investigation-b-r1-changes.md) | `88b46081efe54c40175b610ec98019642e941acd543960b05d4376a3fa3bf2c8` |
 | G | [G0 packet](aws-mcp-sts001-investigation-b-g0-approval-packet-unsigned.md) | `7a47ddaa5c8d9109d65d3ef59e8090a7c2fc9428a646913cca819e4f50026d60` |
 | H | [旧review handoff](aws-mcp-sts001-investigation-b-g0-independent-review-handoff.md) | `ee05fa9c9d2ac43506f6be266e2b18da82b2c2ffaff9e11baa0c84bf061643d7` |
-| R | [既存static review](../../STS001_G0_FINAL_OFFLINE_20261015/input/reference/G0_INDEPENDENT_STATIC_REVIEW.md) | `2a1ce704f4e215c31dc437d38703d9ab5c4cf86d7062027edbe334f5b702279b` |
+| R | `OFFLINE_ONLY_REFERENCE` 既存static review（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/reference/G0_INDEPENDENT_STATIC_REVIEW.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `reference/G0_INDEPENDENT_STATIC_REVIEW.md`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証） | `2a1ce704f4e215c31dc437d38703d9ab5c4cf86d7062027edbe334f5b702279b` |
 
 Pの実行境界が支配する。D/Cは計画の経緯、G/Hは未署名の人間判断候補、Rは旧G/Hの文書レビュー。
 Rの `ACCEPTED_FOR_HUMAN_G0_DECISION_CONSIDERATION` は本書のレビュー判定でもG0承認でもない。
 旧資料が参照するR1独立再確認の別原本は本ZIPに含まれず、今回再検証したとは主張しない。
-[人間の選択記録](../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md)は選好の出典であり、本人確認や権限証明ではない。
+`OFFLINE_ONLY_REFERENCE` 人間の選択記録（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `01_HUMAN_SELECTIONS.md`; SHA-256: `4b7e754594fbecc557c1240ac00c1d1132a3a71f3bb5ae348a40283bef5a0037`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）は選好の出典であり、本人確認や権限証明ではない。
 
 ## 3. 人間が選択済みの方針と残る判断
 

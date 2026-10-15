@@ -23,16 +23,16 @@ AWS API/CLI/SDK/STS、認証情報/config/env/provider/cacheアクセス、Docke
 
 ## 2. 原本と読み順
 
-1. [README_FIRST](../../STS001_G0_FINAL_OFFLINE_20261015/input/README_FIRST.md)、
-   [作業契約](../../STS001_G0_FINAL_OFFLINE_20261015/input/00_AGENT_PROMPT.md)、
-   [人間の選択](../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md)を全文読む。
+1. `OFFLINE_ONLY_REFERENCE` README_FIRST（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/README_FIRST.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `README_FIRST.md`; SHA-256: `d4cd8dcd9417e7449701acacf685f42b6669f15d91be6f85af1068c1ef8b64d0`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）、
+   `OFFLINE_ONLY_REFERENCE` 作業契約（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/00_AGENT_PROMPT.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `00_AGENT_PROMPT.md`; SHA-256: `a43ee92207633f8e79ec461fd33484aeb56b7739895864248492d02f695c44a6`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）、
+   `OFFLINE_ONLY_REFERENCE` 人間の選択（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `01_HUMAN_SELECTIONS.md`; SHA-256: `4b7e754594fbecc557c1240ac00c1d1132a3a71f3bb5ae348a40283bef5a0037`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）を全文読む。
 2. G0最終承認候補section 2のP/D/C/G/H/Rの6原本を全文読む。
    Pの実行境界が支配し、選択記録は本人/権限の証明ではない。
 3. 受領ZIPのmember safety、重複/型/展開量、CRC、内部 `SHA256SUMS` と固定原本hashを再検査する。
    ZIP計算hashは `fc0dd28b9872ab8738f6b7790377a880168a7d5ad23643e1d2b1516079ac4cd1`。
    これは独立の発行者認証ではない。抽出参照とZIP内バイト列の一致も確認する。
-4. [成果物SHA256SUMS](aws-mcp-sts001-investigation-b-g0-final-SHA256SUMS) と
-   [準備QA記録](aws-mcp-sts001-investigation-b-g0-final-qa-receipt.md)を確認し、納品バイト列を再hashする。
+4. `OFFLINE_ONLY_REFERENCE` 成果物SHA256SUMS（元参照: `aws-mcp-sts001-investigation-b-g0-final-SHA256SUMS`; ローカル原本: `.omo/drafts/aws-mcp-sts001-investigation-b-g0-final-SHA256SUMS`; SHA-256: `16322bcf2d835e02b6ddc90871f52a306a807e93876180c98ec7e5bd7ca06a87`; 原本版用であり現PR版の検証値ではない。ZIP内パス: `PENDING`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証） と
+   `OFFLINE_ONLY_REFERENCE` 準備QA記録（元参照: `aws-mcp-sts001-investigation-b-g0-final-qa-receipt.md`; ローカル原本: `.omo/drafts/aws-mcp-sts001-investigation-b-g0-final-qa-receipt.md`; SHA-256: `ce97b60be56d39aef2f5f8dcf5bd9db825c0ff4fe163d287a73b7919cb0ffbed`; 原本作成時点の記録。ZIP内パス: `PENDING`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）を確認し、納品バイト列を再hashする。
 
 integration HEADの引き継ぎ記録 `2b10b5eab33cde6d4d7869473e5c9bee7583865c` と
 固定コード参照 `05f4b92e7ff2de76dc79cf8d5dc9f563a03af209` を混同しない。

@@ -16,7 +16,7 @@ G1-G5 / G1b / G5-release NOT_AUTHORIZED
 Gate STS-001 NOT VERIFIED
 ```
 
-出典: [人間選択](../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md)、
+出典: `OFFLINE_ONLY_REFERENCE` 人間選択（元参照: `../../STS001_G0_FINAL_OFFLINE_20261015/input/01_HUMAN_SELECTIONS.md`; ZIP: `AWS_MCP_STS001_G0_Final_Unsigned_Record_Handoff_20261015.zip` 内 `01_HUMAN_SELECTIONS.md`; SHA-256: `4b7e754594fbecc557c1240ac00c1d1132a3a71f3bb5ae348a40283bef5a0037`; 取得管理経路: `PENDING` — 人間のData Custodianが許可されたreviewerへの既存経路を確認する。経路・受領権限は未検証）、
 [G0 packet](aws-mcp-sts001-investigation-b-g0-approval-packet-unsigned.md) L140-180、
 [R1 plan](../plans/aws-mcp-sts001-investigation-b.md) L455-477、L538-585。
 期間方針だけが選択済み。運用ケースの最初の書き込みより前に、全作成対象クラスについて全欄を人間が承認する。
