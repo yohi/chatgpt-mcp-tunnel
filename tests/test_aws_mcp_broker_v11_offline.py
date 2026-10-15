@@ -40,6 +40,37 @@ class JsonInputTests(unittest.TestCase):
         result, _ = self.decode(b'{"id":"a","version":1}', max_bytes=22)
         self.assertEqual(result.status, "STRUCTURALLY_VALID")
 
+    def test_well_formed_json_respects_custom_byte_limit(self):
+        payload = b'{"id":"a","version":1}'
+        exact_length = len(payload)
+        self.assertEqual(self.decode(payload, max_bytes=exact_length)[0].status,
+                         "STRUCTURALLY_VALID")
+        result, value = self.decode(payload, max_bytes=exact_length - 1)
+        self.assertEqual((result.status, result.reason),
+                         ("REJECTED", "INPUT_SIZE_INVALID"))
+        self.assertIsNone(value)
+
+        # Size is a byte limit, not a count of decoded Unicode characters.
+        multibyte = json.dumps({"id": "漢", "version": 1}, ensure_ascii=False,
+                               separators=(",", ":")).encode("utf-8")
+        self.assertEqual(self.decode(multibyte, max_bytes=len(multibyte))[0].status,
+                         "STRUCTURALLY_VALID")
+        self.assertEqual(self.decode(multibyte, max_bytes=len(multibyte)-1)[0].reason,
+                         "INPUT_SIZE_INVALID")
+
+    def test_global_maximum_exact_and_one_over(self):
+        prefix = b'{"id":"'
+        suffix = b'","version":1}'
+        payload = prefix + b'a' * (subject.MAX_JSON_BYTES - len(prefix) - len(suffix)) + suffix
+        self.assertEqual(len(payload), subject.MAX_JSON_BYTES)
+        self.assertEqual(self.decode(payload)[0].status, "STRUCTURALLY_VALID")
+        over = prefix + b'a' * (subject.MAX_JSON_BYTES + 1 - len(prefix) - len(suffix)) + suffix
+        self.assertEqual(len(over), subject.MAX_JSON_BYTES + 1)
+        result, value = self.decode(over)
+        self.assertEqual((result.status, result.reason),
+                         ("REJECTED", "INPUT_SIZE_INVALID"))
+        self.assertIsNone(value)
+
     def test_malformed_utf8_and_json_and_nonfinite(self):
         for data in (b'\xff', b'\xef\xbb\xbf{}', b'{', b'{"id":NaN,"version":1}',
                      b'{"id":"a","version":Infinity}', b'[]', b'"string"'):
@@ -97,16 +128,37 @@ class BoundaryTests(unittest.TestCase):
         for proposed in (None, {}, {"status": "PENDING"},
                          {"status": "APPROVED"}, {"status": "VERIFIED", "signature": "synthetic"}):
             with self.subTest(proposed=proposed):
-                result = subject.boundary_status(subject.ValidationResult("STRUCTURALLY_VALID", "OK"), proposed)
+                result = subject.boundary_status(subject.ValidationResult("STRUCTURALLY_VALID", "STRUCTURE_ONLY"), proposed)
                 self.assertEqual(result.status, "NOT_VERIFIED")
                 self.assertFalse(hasattr(result, "allow"))
 
     def test_rejection_and_exceptions_cannot_be_allow(self):
-        self.assertEqual(subject.boundary_status(subject.ValidationResult("REJECTED", "INVALID")).status,
+        self.assertEqual(subject.boundary_status(subject.ValidationResult("REJECTED", "INVALID_JSON")).status,
                          "REJECTED")
         self.assertEqual(subject.boundary_status(None).status, "NOT_VERIFIED")
         result, _ = subject.decode_json(b'{"id":"FAKE_SECRET_DO_NOT_LEAK"}', required_types={"id": str}, max_bytes=3)
         self.assertNotIn("FAKE_SECRET", repr(result))
+
+    def test_validation_result_runtime_rejects_unauthorized_status_and_reason(self):
+        for status, reason in (("ALLOW", "STRUCTURE_ONLY"),
+                               ("APPROVED", "FAKE_SECRET_DO_NOT_LEAK"),
+                               ("STRUCTURALLY_VALID", "ARBITRARY"),
+                               ("STRUCTURALLY_VALID", "INVALID_JSON"),
+                               ("REJECTED", "STRUCTURE_ONLY"),
+                               ("NOT_VERIFIED", "STRUCTURAL_REJECTION"),
+                               (None, "STRUCTURE_ONLY"),
+                               ("REJECTED", None)):
+            with self.subTest(status=status, reason=reason):
+                with self.assertRaisesRegex(ValueError, "^invalid validation result$"):
+                    subject.ValidationResult(status, reason)
+
+        for status, reason in (("STRUCTURALLY_VALID", "STRUCTURE_ONLY"),
+                               ("REJECTED", "INVALID_JSON"),
+                               ("NOT_VERIFIED", "NORMATIVE_BASELINE_NOT_VERIFIED")):
+            self.assertEqual(subject.ValidationResult(status, reason).reason, reason)
+        self.assertEqual(subject.boundary_status(
+            subject.ValidationResult("STRUCTURALLY_VALID", "STRUCTURE_ONLY")).status,
+            "NOT_VERIFIED")
 
     def test_clock_injection_validates_aware_datetime_without_authority(self):
         clock = lambda: dt.datetime(2026, 10, 15, tzinfo=dt.timezone.utc)

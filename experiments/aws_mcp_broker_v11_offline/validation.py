@@ -18,12 +18,41 @@ Status = Literal["STRUCTURALLY_VALID", "REJECTED", "NOT_VERIFIED"]
 MAX_JSON_BYTES = 65_536
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z", re.ASCII)
 _ALLOWED_TYPES = frozenset((str, int, float, bool, dict, list))
+# Closed diagnostic pairs; matching one never grants AWS or Broker authority.
+_VALID_RESULTS = frozenset({
+    ("STRUCTURALLY_VALID", "STRUCTURE_ONLY"),
+    ("STRUCTURALLY_VALID", "DIGEST_ONLY"),
+    ("STRUCTURALLY_VALID", "CLOCK_SHAPE_ONLY"),
+    ("REJECTED", "INVALID_INPUT_BOUNDARY"),
+    ("REJECTED", "INPUT_SIZE_INVALID"),
+    ("REJECTED", "INVALID_SCHEMA"),
+    ("REJECTED", "INVALID_JSON"),
+    ("REJECTED", "OBJECT_REQUIRED"),
+    ("REJECTED", "INVALID_JSON_SCALAR"),
+    ("REJECTED", "UNKNOWN_FIELD"),
+    ("REJECTED", "MISSING_FIELD"),
+    ("REJECTED", "INVALID_FIELD_TYPE"),
+    ("REJECTED", "INVALID_DIGEST_INPUT"),
+    ("REJECTED", "INVALID_DIGEST_FORMAT"),
+    ("REJECTED", "DIGEST_MISMATCH"),
+    ("REJECTED", "CLOCK_REQUIRED"),
+    ("REJECTED", "INVALID_CLOCK_VALUE"),
+    ("REJECTED", "STRUCTURAL_REJECTION"),
+    ("NOT_VERIFIED", "CLOCK_UNAVAILABLE"),
+    ("NOT_VERIFIED", "NORMATIVE_BASELINE_NOT_VERIFIED"),
+})
 
 
 @dataclass(frozen=True, slots=True)
 class ValidationResult:
     status: Status
     reason: str
+
+    def __post_init__(self) -> None:
+        # Literal annotations do not constrain caller-provided values at runtime.
+        if (type(self.status) is not str or type(self.reason) is not str
+                or (self.status, self.reason) not in _VALID_RESULTS):
+            raise ValueError("invalid validation result")
 
 
 def _no_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
