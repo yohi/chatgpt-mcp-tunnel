@@ -1,0 +1,66 @@
+{
+  "record_type": "N1_LOCAL_VERIFICATION_NOT_AUTHORITY_OR_N2_REVIEW",
+  "generated_at_utc": "2026-10-15T20:44:28.824Z",
+  "checks": [
+    {
+      "name": "original_outer_bytes",
+      "result": "PASS",
+      "detail": "126254 bytes; 8ede6a833d9f846fae3b28e47fa9207142377f1d74c74258ab4e736572cdf051"
+    },
+    {
+      "name": "outer_manifest",
+      "result": "PASS",
+      "detail": "7/7 sizes and SHA-256"
+    },
+    {
+      "name": "provided_sha256sums",
+      "result": "PASS",
+      "detail": "outer 8/8; R4 14/14; R1 13/13"
+    },
+    {
+      "name": "n0_manifest",
+      "result": "PASS",
+      "detail": "5/5 deliverables; 14/14 R4 members"
+    },
+    {
+      "name": "b1_b2_b3_copy_equality",
+      "result": "PASS",
+      "detail": "3/3 raw byte-identical"
+    },
+    {
+      "name": "three_clause_bodies",
+      "result": "PASS",
+      "detail": "old/new digests, byte lengths and all six N1 quotations match sources; no added final LF"
+    },
+    {
+      "name": "r4_individual_inventory",
+      "result": "PASS",
+      "detail": "10 REQ + 12 AC rows; current classification UNADOPTED_PROPOSAL"
+    },
+    {
+      "name": "unsigned_event_and_gates",
+      "result": "PASS",
+      "detail": "approval/event/effective-time null; three signatures empty; all fixed gates retained"
+    },
+    {
+      "name": "document_structure_and_local_links",
+      "result": "PASS",
+      "detail": "6 docs: fences/headings/whitespace/final LF; 10 local file links resolve; no machine-home paths or Hangul"
+    },
+    {
+      "name": "japanese_quoted_character_repertoire",
+      "result": "PASS",
+      "detail": "all Han in six authored documents encodable in JIS X 0208 (iso2022_jp)"
+    },
+    {
+      "name": "fixed_git_and_existing_work_preservation",
+      "result": "PASS",
+      "detail": "local HEAD/branch fixed; 34 tree paths match observations; fixed G0 digest matches; no tracked/index changes"
+    }
+  ],
+  "markdownlint_cli2": "NOT_AVAILABLE; explicit structural checks are not full markdownlint",
+  "zip_crc_and_safe_path_check": "Performed separately with unzip and Python zipfile on original and all nested archives; not a technical runtime test",
+  "aws_api_budget": 0,
+  "formal_approval_created": false,
+  "n2_started": false
+}

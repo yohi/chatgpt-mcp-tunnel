@@ -1,0 +1,4 @@
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Finding: AWS_MCP_Broker_N1P_20261016/0*.md
+Linting: 8 file(s)
+Summary: 0 error(s)

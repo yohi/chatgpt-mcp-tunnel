@@ -1,0 +1,50 @@
+{
+  "package_id": "AWS_MCP_BROKER_N1_HANDOFF_20261016",
+  "package_purpose": "read_only_authority_recovery_and_unsigned_decision_preparation",
+  "fixed_git_commit": "ac462699e0b1988eda63ea3d6dacfc2a030bb822",
+  "authority_disclaimer": "Submitted local copies are not proof of canonical originals or authenticated adoption",
+  "contents": [
+    {
+      "path": "00_READ_FIRST.md",
+      "bytes": 1087,
+      "sha256": "1a2f47baf9f3480f420bcffc4a789234c1e552cb8a04162502d8f6e4eccad9e8",
+      "source_name": "00_READ_FIRST.md"
+    },
+    {
+      "path": "01_N1_AGENT_WORK_CONTRACT.md",
+      "bytes": 10382,
+      "sha256": "8a6a425771dcf7ba6bada1f9f7e7646f7055bd5dee33892ef1d77d07704c2d64",
+      "source_name": "01_N1_AGENT_WORK_CONTRACT.md"
+    },
+    {
+      "path": "sources/01_N0_Submitted_Result.zip",
+      "bytes": 21730,
+      "sha256": "1e532707f4241fece3ef63fa889048bbae62facadd8ef6fdae413815e09409d4",
+      "source_name": "AWS_MCP_Broker_Phase_N0_20261016(1).zip"
+    },
+    {
+      "path": "sources/02_R4_Submitted_Copy.zip",
+      "bytes": 51161,
+      "sha256": "cd9611654f17d5eee73d47d5d32ce6d94459c24016c2dc3a1a157f90fbd8a15c",
+      "source_name": "aws-mcp-broker-v1.1-normative-reconciliation-rev4 (1).zip"
+    },
+    {
+      "path": "sources/03_Option_A_R1_Submitted_Copy.zip",
+      "bytes": 35057,
+      "sha256": "cedf39f04a1733e42fe00e22f9c262a0bd5ad62a682a6ee50efdced287e85912",
+      "source_name": "aws-mcp-broker-v1.1-option-a-limited-correction-r1(1).zip"
+    },
+    {
+      "path": "sources/04_Owner_Intent_Submitted_Copy.md",
+      "bytes": 13475,
+      "sha256": "5b9fd27668d7a47cfeff5c09fc6aae79decbd5929b159e953b7274ce4355c34a",
+      "source_name": "aws_mcp_broker_v11_owner_approval_attestation_20261014(1).md"
+    },
+    {
+      "path": "sources/05_STS001_Security_Contract_DRAFT_Submitted_Copy.md",
+      "bytes": 14724,
+      "sha256": "0cc08ad3a1970be2ba4a73e47240d96fc9300afb5747da48db2d2bd9bdac102c",
+      "source_name": "AWS_MCP_STS001_Broker_Security_Contract_Draft_20261014.md"
+    }
+  ]
+}

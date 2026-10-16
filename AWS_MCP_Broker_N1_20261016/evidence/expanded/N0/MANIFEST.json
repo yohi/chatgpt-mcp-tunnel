@@ -1,0 +1,142 @@
+{
+  "generated_at_jst": "2026-10-16",
+  "fixed_git_commit": "ac462699e0b1988eda63ea3d6dacfc2a030bb822",
+  "safety_gates": {
+    "NORMATIVE_BASELINE": "NOT_VERIFIED",
+    "BROKER_RUNTIME_INTEGRATION": "NOT_AUTHORIZED",
+    "G0_EXECUTION_APPROVAL": "NOT_AUTHORIZED",
+    "AWS_API_BUDGET": 0,
+    "Gate STS-001": "NOT VERIFIED"
+  },
+  "sources": [
+    {
+      "name": "aws-mcp-broker-v1.1-normative-reconciliation-rev4 (1).zip",
+      "sha256": "cd9611654f17d5eee73d47d5d32ce6d94459c24016c2dc3a1a157f90fbd8a15c",
+      "bytes": 51161
+    },
+    {
+      "name": "aws-mcp-broker-v1.1-option-a-limited-correction-r1(1).zip",
+      "sha256": "cedf39f04a1733e42fe00e22f9c262a0bd5ad62a682a6ee50efdced287e85912",
+      "bytes": 35057
+    },
+    {
+      "name": "AWS_MCP_STS001_SEC04_POLICY_Evidence_Acquisition_R2_20261015.zip",
+      "sha256": "846ffe1e79852e6a50a70d417e0e64266413897de84ef3203319ca5cf615bbe4",
+      "bytes": 40124
+    },
+    {
+      "name": "AWS_MCP_STS001_SEC04_Independent_Feasibility_20261014.zip",
+      "sha256": "c049372a49be3656b866eaa75047aa3bf72eec05f8e569c3dd54e039f917e862",
+      "bytes": 14157
+    },
+    {
+      "name": "aws_mcp_broker_v11_owner_approval_attestation_20261014(1).md",
+      "sha256": "5b9fd27668d7a47cfeff5c09fc6aae79decbd5929b159e953b7274ce4355c34a",
+      "bytes": 13475
+    },
+    {
+      "name": "AWS_MCP_STS001_Broker_Security_Contract_Draft_20261014.md",
+      "sha256": "0cc08ad3a1970be2ba4a73e47240d96fc9300afb5747da48db2d2bd9bdac102c",
+      "bytes": 14724
+    }
+  ],
+  "archive_members": [
+    {
+      "name": "00-README.md",
+      "sha256": "f7d0ef1360a299137f695f30b7bba540624ebab7e0460024639bddfbc2938c34",
+      "size_bytes": 3895
+    },
+    {
+      "name": "01-fixed-baseline-v1.0.md",
+      "sha256": "39002fc2ce5f21e9e686a427c793a7fd42fc84e5bdb02684be9e1e3a4305f4bc",
+      "size_bytes": 13633
+    },
+    {
+      "name": "02-fixed-baseline-v1.1.md",
+      "sha256": "3078acc5c31b5e900697dbb585e5ed604dfca89fe82b56cfc9528ac3c91350e2",
+      "size_bytes": 7247
+    },
+    {
+      "name": "03-fixed-decisions-Q33-Q40.md",
+      "sha256": "f287966ac61f467704f99c545f2d7a9756b9f21a70a5f90a814367ab7a113aa4",
+      "size_bytes": 2506
+    },
+    {
+      "name": "04-normative-reconciliation-rev4.md",
+      "sha256": "4582d85fec1c403854e4fa4f2b4010d0fb2254290f57fe6f01b273a8b146798b",
+      "size_bytes": 7216
+    },
+    {
+      "name": "05-nonregression-matrix-rev4.md",
+      "sha256": "8c6ce4ea0ac06adc0d4aa6d89dc3293e329ac16051aece5ee205cabb3c1e78b8",
+      "size_bytes": 12071
+    },
+    {
+      "name": "06-security-requirements-rev4.md",
+      "sha256": "ffd47e848e8bba76a39f2732d92f6b8ba7cff652939e8d4fb6653604e84abb6f",
+      "size_bytes": 23027
+    },
+    {
+      "name": "07-acceptance-rev4.md",
+      "sha256": "501874cc568350f224aad45b45f09dc1e746ec6f10e9e5796baf4c27ad21dcc7",
+      "size_bytes": 12349
+    },
+    {
+      "name": "08-owner-decision-request.md",
+      "sha256": "021f2ca95d6f769881150bc00df067692eccc0cb3fc174a567fe3f83fa255d90",
+      "size_bytes": 18642
+    },
+    {
+      "name": "09-fresh-independent-review-request.md",
+      "sha256": "080c5623ecaa0d10e60041d333de2e79f47bb448019a93ad98796eb3aa9aa267",
+      "size_bytes": 4417
+    },
+    {
+      "name": "10-feasibility-handoff-rev4.md",
+      "sha256": "c44d70806326e603108e84746038de5be170d19144e2bf4b1c886353cf1d5de1",
+      "size_bytes": 5741
+    },
+    {
+      "name": "11-r2-review-findings.md",
+      "sha256": "0682b86e7c42981ce8fb55b7a5a9684b9618099253002a7f4ee5b30849e4a7db",
+      "size_bytes": 1491
+    },
+    {
+      "name": "12-r3-review-findings.md",
+      "sha256": "074278ea14e24f73aa186c038be8e505b835471b5f371ff88d8adb4248b5fa93",
+      "size_bytes": 1890
+    },
+    {
+      "name": "13-owner-decision-record-template.md",
+      "sha256": "137598bbcf055cdedd42a5273fdecd5cb80828c7a5e4365603c4581c015ed4f9",
+      "size_bytes": 1537
+    }
+  ],
+  "deliverables": [
+    {
+      "file": "01_Normative_Source_Authority_Register.md",
+      "sha256": "dddb476922db167d0bb643923d8eb1f20cb622b92ae84a46d34831ac7b430671",
+      "size_bytes": 9625
+    },
+    {
+      "file": "02_Requirements_Adoption_Status_Matrix.md",
+      "sha256": "afbc42d889bed28b88128890c6892f2194a6ab3c10d57906c2ceed756ef4218e",
+      "size_bytes": 7851
+    },
+    {
+      "file": "03_Design_Implementation_Gap_Analysis.md",
+      "sha256": "377d460a10c66560a2aef85362f7da7c89cf2c02abd98e40819df992ef2fe862",
+      "size_bytes": 10755
+    },
+    {
+      "file": "04_Owner_Decision_Packet_UNSIGNED.md",
+      "sha256": "16a2bbbdeeb6038ec9b956ff14c5e029429e8806e85db126c9de39651356c0e0",
+      "size_bytes": 6670
+    },
+    {
+      "file": "05_Phase_I2_Implementation_Readiness_Report.md",
+      "sha256": "4c26b5c9617639fb033b8751711efd8d760a33cdf61ffbaa4cbed979d92ba8c8",
+      "size_bytes": 7247
+    }
+  ]
+}

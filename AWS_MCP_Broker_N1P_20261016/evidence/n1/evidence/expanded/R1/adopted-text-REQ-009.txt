@@ -1,0 +1,5 @@
+AWS認証情報、一時クレデンシャル、Bitwarden認証情報をAIエージェント、MCP応答、通常ログへ公開してはならない。
+
+認証情報は種類ごとに明示的に認可された、実効的に保護され相互に隔離された実行境界内でのみ使用すること。AWS STS一時認証情報はBroker/AWS Executorの保護領域で必要なAWS API署名に限り使用できる。BWS Access TokenはBrokerから独立したSecret Adapter専用のSecret Store・実行主体の保護領域内でのみ使用できる。外部サービス用Secretは独立Secret Adapter内で、認可済みの外部サービス操作に限り利用できる。
+
+Broker本体、AWS Executor、管理Web画面、AIエージェントにBWS Access Tokenまたは外部サービス用Secretを取得・復号・使用できる権限や経路を設けてはならない。既存AWS IAM長期アクセスキーはBroker、AWS Executor、独立Secret Adapter、独立認可主体その他の関連構成要素のいずれも取得・復号・使用してはならない。これらの境界は、システム全体を指す「Broker」という集合名によって同一実行・管理境界とみなしてはならない。

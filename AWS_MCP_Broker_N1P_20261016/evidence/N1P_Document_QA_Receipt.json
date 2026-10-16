@@ -1,0 +1,23 @@
+{
+  "classification": "UNSIGNED_PROPOSED_NOT_EFFECTIVE_DOCUMENT_QA_ONLY",
+  "scope": "eight authored N1-P documents; not N2 and not authority or technical assurance",
+  "reader_check": {
+    "method": "separate explore reader given only target directory and explicit document-only safety constraints",
+    "organizational_independence": "NOT_VERIFIED_NOT_CLAIMED",
+    "finding_1": "Partial-event procedure should explicitly bind actual Case P route selection to same or verified prior event",
+    "finding_1_disposition": "CLARIFIED in document 06 section 4; no approval issued",
+    "finding_2": "Suspected N1 document03 table reference incorrectly attributed to document05",
+    "finding_2_verification": "Actual reference in N1-P document02 points correctly to retained N1 document03 and its 18 path classes",
+    "finding_2_disposition": "No source-number correction warranted; complete retained-file link added to avoid N1/N1-P ambiguity",
+    "other_reported_results": "No clear implied approval or OA hash inconsistency in eight documents; all 22 decisions pending; all execution/technical gates retained"
+  },
+  "markdownlint": {
+    "tool": "markdownlint-cli2 0.20.0 / markdownlint 0.40.0",
+    "scope": "eight newly authored Markdown documents only",
+    "rules": "default rules except MD013 line_length=120, tables=false, code_blocks=false",
+    "reason": "digest tables and exact source coordinates must remain single rows",
+    "reproduction": "Use markdownlint-cli2 with the recorded MD013 rule options against 0*.md; never autofix preserved input files"
+  },
+  "signature": "",
+  "actual_adoption_event": null
+}

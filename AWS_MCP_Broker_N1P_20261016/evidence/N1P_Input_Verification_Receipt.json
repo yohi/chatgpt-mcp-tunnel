@@ -1,0 +1,92 @@
+{
+  "classification": "UNSIGNED_PROPOSED_NOT_EFFECTIVE_INTEGRITY_RECEIPT_NOT_AUTHORITY",
+  "fixed_commit": "ac462699e0b1988eda63ea3d6dacfc2a030bb822",
+  "outer": {
+    "path": "sources/AWS_MCP_Broker_N1P_Handoff_20261016.zip",
+    "bytes": 410946,
+    "sha256": "cf09ba905dfb8ab2721ed5c873924829a2e4f9d5d0f79dd6b20d5b560e5c780f",
+    "expected_digest_source": "user supplied",
+    "crc_members_pass": 6,
+    "manifest_size_sha256_pass": 4,
+    "sha256sums_pass": 5
+  },
+  "n1": {
+    "sha256": "b26add50668cf2bdc7929513a7a8c1e3a2325b7c6d8e45e0ab9dd35ca67e0ef6",
+    "bytes": 412744,
+    "crc_members_pass": 64,
+    "regular_files": 56,
+    "manifest_deliverables_pass": 6,
+    "manifest_evidence_pass": 47,
+    "sha256sums_pass": 54
+  },
+  "nested": {
+    "n1_original_handoff_crc_members": 9,
+    "n1_original_handoff_manifest_entries": 7,
+    "n1_original_handoff_sha256sums": 8,
+    "n0_crc_members": 6,
+    "n0_manifest_deliverables": 5,
+    "n0_declared_r4_archive_members_compared": 14,
+    "r4_crc_members": 15,
+    "r4_sha256sums": 14,
+    "r1_crc_members": 14,
+    "r1_sha256sums": 13,
+    "original_zip_members_equal_expanded_copies": "PASS: N0 6, R4 15, R1 14",
+    "both_occurrences_of_repeated_nested_archives_checked": true
+  },
+  "zip_safety": {
+    "absolute_traversal_backslash_drive_names": "NONE",
+    "duplicate_names_links_nonregular_encrypted": "NONE",
+    "strict_member_max_bytes": 10485760,
+    "strict_archive_expansion_max_bytes": 52428800,
+    "strict_compression_ratio_less_than": 300,
+    "strict_scan_result": "PASS_ALL_ARCHIVES",
+    "scratch_extraction_limits": "initial outer/N1 extraction bounded to 100 MiB/member and 300 MiB/archive; strict 10 MiB/50 MiB/ratio scan subsequently passed before packaging; no archive content executed"
+  },
+  "candidate_checks": {
+    "b1_b2_b3_r4_r1_byte_identity": "PASS_3_OF_3",
+    "oa_raw_bodies_r4_request_r1_record_owner_intent": "PASS_3_OF_3",
+    "oa_utf8_lengths": [1241, 2939, 1213],
+    "oa_final_newline": false,
+    "oa_unicode_normalization_applied": false,
+    "old_bodies_b1_b2_equal_r4_request_and_digests": "PASS_3_OF_3",
+    "r4_clause_digest_scopes": "document 03 H-S requirement bodies and H-A complete AC rows",
+    "original_ids_independently_counted": "49 REQ / 24 AC",
+    "n1p_retained_ledger_coverage": "PASS_73_OF_73",
+    "r4_unique_pending_human_rows": 22
+  },
+  "repository_observations": {
+    "local_branch": "feat/aws-broad-iam-read-api-tools",
+    "local_head_and_remote_branch": "ac462699e0b1988eda63ea3d6dacfc2a030bb822",
+    "drift": "NONE_OBSERVED",
+    "pr14_merged": true,
+    "pr14_merge": "8f4c7c880d74c44e640d6ea3a423e167c942b051",
+    "pr14_merged_at_utc": "2026-10-15T10:14:22Z",
+    "pr15_merged": true,
+    "pr15_merge": "ac462699e0b1988eda63ea3d6dacfc2a030bb822",
+    "pr15_merged_at_utc": "2026-10-15T10:48:51Z",
+    "github_methods": "read-only gh api GET for named branch and PR14/15",
+    "i1_closures": "REPORTED_LIMITED_REVIEW_NOT_REPERFORMED"
+  },
+  "authority": {
+    "historical_b1_b2_b3": "NOT_VERIFIED",
+    "canonical_originals_design_integrated_ac_security": "NOT_RECOVERED",
+    "actual_owner_identity_delegation_adoption": "NOT_VERIFIED",
+    "case_p": "PROPOSED_NOT_YET_SELECTED_BY_OWNER",
+    "actual_approval_event": null,
+    "actual_effective_time": null,
+    "final_adopted_composition_digest": null,
+    "signature": ""
+  },
+  "nonexecution": {
+    "aws_api_calls": 0,
+    "aws_credentials_config_provider_cache_access": 0,
+    "sts_iam_bitwarden_secret_store_access": 0,
+    "docker_production_broker_execution": 0,
+    "github_writes_prs_merges": 0,
+    "n2_started": false,
+    "int003": "CRITICAL_OPEN",
+    "feas007c": "NOT_PROVEN",
+    "gate_sts001": "NOT VERIFIED"
+  },
+  "reproduction": "Validate retained original ZIPs before extraction; verify every MANIFEST/SHA256SUMS in its own scope, compare original/expanded bytes, apply document 01 body scopes and document 03 H-S/H-A. Log: evidence/N1P_Input_Verification_Log.txt. Hash agreement does not authenticate authority."
+}

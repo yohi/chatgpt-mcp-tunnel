@@ -1,0 +1,11 @@
+--- original-owner-decision-record-option-a.md
++++ 01-owner-decision-record-option-a-limited-correction-r1.md
+@@ -94,7 +94,7 @@
+ - REQ-046はBrokerインストールに専用のMachine Account/Projectを保持しつつ、実際のToken/Secret取得権限を独立Secret Adapterへ限定する。Bitwarden連携は初期無効。
+ - AC-022は独立Adapterの肯定的試験とBroker等からの取得拒否を要求し、取得前保証が証明できなければ機能を`BLOCKED`とする。
+ - 既存IAM長期アクセスキーの取得・復号・利用、代替Fallbackは全構成要素で禁止。2人が正規承認した場合も禁止値混入は免除しない。
+-- 全実効的な権限変更経路には独立二者承認を要求し、認可証明の発行、Operation Contract Digest拘束、取消・実送信の保証境界は緩和しない。
++- 全実効的な権限拡大・高リスク変更の経路には独立した2名の承認を要求する。一方、Q40およびR4候補REQ-057で認める、認可済み管理者1名による緊急停止・Bitwarden連携無効化・BWS Access Token失効・許可リスト縮小・権限取消を妨げない。縮小を装う権限拡大、権限復旧・再有効化、および二者承認の迂回は、この例外に含めない。認可証明の発行、Operation Contract Digest拘束、取消・実送信の保証境界は緩和しない。
+ - REQ-050〜059、AC-025〜036はR4規範候補であり、本Recordのみで正式採用されたと主張しない。旧REQ-009/046とAC-022の置換を実施しない。
+ 
+ ## 5. Unresolved evidence and gates
