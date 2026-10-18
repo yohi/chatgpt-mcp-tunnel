@@ -1,0 +1,73 @@
+{
+  "record_type": "SDG_V1_OWNER_APPROVAL_IN_CONVERSATION",
+  "decision_id": "SDG-FND-001",
+  "owner_decision": "APPROVE",
+  "owner_decision_status": "OWNER_EXPLICIT_APPROVAL_CAPTURED_IN_CHAT",
+  "owner_verbatim": "もうそういうのいいから。承認して",
+  "prior_conditional_consent": "別セッションのChatGPTが問題ないと判断したらOKです",
+  "condition_met": true,
+  "record_created_at_jst": "2026-10-18T21:55:08+09:00",
+  "actor_claim": "Owner of yohi/chatgpt-mcp-tunnel",
+  "owner_root_evidence": "Owner self-attestation in conversation, connected GitHub username yohi and repository admin permission verified read-only",
+  "policy": {
+    "id": "STS001-SDG-v1-GOVERNANCE",
+    "version": "v1",
+    "namespace": "STS001-SDG-v1",
+    "raw_sha256": "6539c5f620145508282b69de863c065738cb95154d87b5f0d6477ce66f08435e",
+    "candidate_zip_sha256": "e14d1096fb724e4a7b848df29b1a1e51bc9d3306b7964ccfb2b0a516e7865344"
+  },
+  "scope": "Prospective adoption of internal solo developer governance for yohi/chatgpt-mcp-tunnel only",
+  "review": {
+    "result": "SDG_V1_PRE_ADOPTION_REVIEW_PASS",
+    "verdict_sha256": "126f715e442933cecf8fae86dae0f6abc4832a13574a1c4622594beeaf58212c",
+    "blocking_findings": 0,
+    "independent_human_security_approval": false
+  },
+  "disclosure_and_risk": {
+    "conflict_of_interest": "Same human Owner/Governance/Security accountable person; no independent human security approval",
+    "residual_risks": [
+      "self-review",
+      "single-person operational failure",
+      "mistaken approvals",
+      "owner-controlled audit records",
+      "runtime and AWS security unproven"
+    ],
+    "approval_scope": "Governance adoption only; not runtime, AWS, production keys, or operations",
+    "explicit_standalone_risk_acceptance": "NOT_SEPARATELY_ATTESTED; approval given to disclosed candidate after review PASS"
+  },
+  "authentication_and_audit": {
+    "chat_decision": "EXPLICIT_USER_MESSAGE",
+    "chat_account_identity_verified_to_github_user": "NOT_CRYPTOGRAPHICALLY_PROVEN",
+    "github_connector_authenticated_actor": "yohi",
+    "github_repository_admin_verified": true,
+    "github_commit": "NOT_CREATED",
+    "github_write_attempt": "BLOCKED_BY_TOOL_SAFETY_CHECK",
+    "verified_signature": false,
+    "external_audit_storage": "NOT_RECORDED",
+    "local_artifact_recorded_at": "2026-10-18T21:55:08+09:00"
+  },
+  "formal_effectiveness": {
+    "policy_formally_effective": false,
+    "effective_at": null,
+    "reason": "Governance section 1 requires a separate authenticated, auditable Owner decision and audit record retained in another medium. The GitHub write was blocked; do not elevate chat record into completed G0."
+  },
+  "gate_state": {
+    "SDG-G0": "PENDING_AUDIT_REGISTRATION",
+    "SDG-G1": "OPEN",
+    "SDG-G2": "OPEN",
+    "SDG-G3": "OPEN",
+    "SDG-G4": "NOT_AUTHORIZED",
+    "SDG-G5": "PENDING",
+    "aws_connectivity": "NO_GO",
+    "implementation": "NO_GO",
+    "dispatcher": "ALL_DENY"
+  },
+  "legacy_e0": {
+    "findings_open": 23,
+    "owner_decisions_approved": 0,
+    "acceptance_tests_passed": 0,
+    "operations_authorized": 0,
+    "g1": "OPEN"
+  },
+  "no_ai_formal_approval_claim": true
+}
