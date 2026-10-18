@@ -1,0 +1,70 @@
+# TEMPORARY, explicitly opted-in manual STS role session.
+# Requires Docker Compose 2.24.4+ for !override. Never remove that tag.
+services:
+  aws-tunnel:
+    # Completely replace the baseline login cache mount. Never merge volumes!
+    volumes: !override
+      - aws-mcp-quick-sts:/run/aws-mcp-quick-sts:ro
+    environment:
+      AWS_PROFILE: aws-mcp-sts-quick
+      AWS_CONFIG_FILE: /etc/aws-mcp/quick-sts.conf
+      AWS_SHARED_CREDENTIALS_FILE: /dev/null
+      # Broad API tool exposure; IAM role and STS policy provide restrictions.
+      MCP_COMMAND: >-
+        mcp-proxy-for-aws-cli
+        https://aws-mcp.${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}.api.aws/mcp
+        --service aws-mcp
+        --region ${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}
+        --profile aws-mcp-sts-quick
+        --metadata AWS_REGION=${AWS_MCP_TARGET_REGION:-ap-northeast-1}
+
+  aws-quick-sts-init:
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles: [aws-quick-sts-init]
+    user: '0:0'
+    entrypoint: ['/bin/sh', '-ec']
+    command: ['chown 10001:10001 /run/aws-mcp-quick-sts && chmod 0700 /run/aws-mcp-quick-sts']
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: ['no-new-privileges:true']
+    volumes:
+      - aws-mcp-quick-sts:/run/aws-mcp-quick-sts
+
+  aws-quick-sts-issue:
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles: [aws-quick-sts-issue]
+    user: '10001:10001'
+    entrypoint: ['python', '/usr/local/bin/aws-mcp-sts-quick.py', 'issue']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    tmpfs: ['/tmp:rw,nosuid,nodev,size=32m']
+    volumes:
+      # Only this one-shot helper sees aws login credentials.
+      - aws-sso-data:/home/awsuser/.aws
+      - aws-mcp-quick-sts:/run/aws-mcp-quick-sts
+    environment:
+      HOME: /home/awsuser
+      AWS_CONFIG_FILE: /home/awsuser/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsuser/.aws/credentials
+      AWS_PROFILE: default
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_MCP_STS_ROLE_ARN: '${AWS_MCP_STS_ROLE_ARN:?Set reviewed read-only role ARN in .env.aws}'
+      AWS_REGION: '${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}'
+      AWS_DEFAULT_REGION: '${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}'
+
+  aws-quick-sts-clear:
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles: [aws-quick-sts-clear]
+    user: '10001:10001'
+    entrypoint: ['/bin/sh', '-ec']
+    command: ['rm -f /run/aws-mcp-quick-sts/credentials.json']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    volumes:
+      - aws-mcp-quick-sts:/run/aws-mcp-quick-sts
+
+volumes:
+  aws-mcp-quick-sts:

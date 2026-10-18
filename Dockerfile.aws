@@ -21,6 +21,8 @@ RUN python -m pip install --no-cache-dir \
 
 COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
 COPY scripts/aws-tunnel-healthcheck.py /usr/local/bin/aws-tunnel-healthcheck.py
+COPY scripts/aws-mcp-sts-quick.py /usr/local/bin/aws-mcp-sts-quick.py
+COPY etc/aws-mcp/quick-sts.conf /etc/aws-mcp/quick-sts.conf
 
 RUN groupadd --gid 10001 awsuser \
     && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin awsuser \
