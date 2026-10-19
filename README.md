@@ -145,6 +145,15 @@ Tunnel ID and an independent credential cache volume. It also defaults to
 See **[AWS setup and security walkthrough](README-AWS.md)**.
 Do not use the Atlassian `.env` for the AWS service.
 
+**Temporary role lifecycle (opt-in PR #10):** Broad AWS API reads use a
+short-lived STS session from a **temporary IAM role named
+`ReadOnlyIAMRole_YYYYYMMDDHHMMSS`** (literal five-digit year, JST).
+At the end of AWS MCP use, run `bash scripts/aws-mcp-end-session.sh`
+to stop the AWS MCP Tunnel and Broker and delete **only the verified,
+project-created role**. Normal Docker stop/restart does not delete IAM
+roles. The AWS login source credential cache and Atlassian volumes remain
+untouched. See [temporary-role lifecycle](README-AWS.md#temporary-iam-role-lifecycle-timestamped-creation-and-guaranteed-end-of-use-cleanup).
+
 ## Upstream references
 
 - [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)

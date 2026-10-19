@@ -76,6 +76,37 @@ services:
       AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
       AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
 
+  aws-role-bootstrap:
+    # Opt-in, one-shot IAM role provisioning using the EXISTING aws login cache.
+    # Does not run with the AWS Tunnel or automatically create IAM resources.
+    # Dry run by default: docker compose --env-file .env.aws -f compose.aws.yaml
+    #   run --rm --no-deps aws-role-bootstrap
+    # Explicit mutation: append --apply.
+    image: chatgpt-aws-mcp-tunnel:local
+    profiles:
+      - aws-bootstrap
+    user: "10001:10001"
+    entrypoint: ["python", "/usr/local/bin/aws-mcp-bootstrap-role.py"]
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m
+    volumes:
+      - aws-sso-data:/home/awsuser/.aws
+      - aws-mcp-role-credentials:/run/aws-mcp-credentials
+    environment:
+      HOME: /home/awsuser
+      AWS_CONFIG_FILE: /home/awsuser/.aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsuser/.aws/credentials
+      AWS_PROFILE: aws-mcp-readonly
+      AWS_EC2_METADATA_DISABLED: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+      AWS_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+      AWS_DEFAULT_REGION: "${AWS_MCP_ENDPOINT_REGION:-ap-northeast-1}"
+
   aws-sso-init:
     # Legacy service name (kept to preserve documented commands); one-shot
     # ownership repair for the credential cache volume created by an earlier
@@ -101,4 +132,5 @@ services:
       - aws-sso-data:/home/awsuser/.aws
 
 volumes:
+  aws-mcp-role-credentials:
   aws-sso-data:
