@@ -93,7 +93,7 @@ assert not Path("/home/awsuser/.aws/config").exists(), "Source cache mounted in 
 s=boto3.Session(profile_name="aws-mcp-sts-quick")
 assert s.get_credentials().method=="custom-process", "Unexpected credential provider"
 actual=s.client("sts").get_caller_identity()["Arn"]
-expected="arn:aws:sts::456720798575:assumed-role/aws-security-audit-readonly/chatgpt-mcp-quick-readonly"
+expected="arn:aws:sts::456720798575:assumed-role/aws-security-audit-readonly/aws-mcp-quick-readonly"
 assert actual==expected, "Wrong role session identity"
 print("PASS: MCP uses dedicated temporary STS role")
 '

@@ -58,9 +58,9 @@ class CredentialProcessTest(unittest.TestCase):
         expiry=dt.datetime.now(dt.timezone.utc)+dt.timedelta(hours=1)
         sts.assume_role.return_value={'Credentials':{
             'AccessKeyId':'ASIA-mock','SecretAccessKey':'secret','SessionToken':'token','Expiration':expiry,
-        },'AssumedRoleUser':{'Arn':'arn:aws:sts::123456789012:assumed-role/ReadOnly/chatgpt-mcp-quick-readonly'}}
+        },'AssumedRoleUser':{'Arn':'arn:aws:sts::123456789012:assumed-role/ReadOnly/aws-mcp-quick-readonly'}}
         source_session=MagicMock();source_session.client.return_value=sts
-        probe_sts=MagicMock();probe_sts.get_caller_identity.return_value={'Arn':'arn:aws:sts::123456789012:assumed-role/ReadOnly/chatgpt-mcp-quick-readonly'}
+        probe_sts=MagicMock();probe_sts.get_caller_identity.return_value={'Arn':'arn:aws:sts::123456789012:assumed-role/ReadOnly/aws-mcp-quick-readonly'}
         probe_session=MagicMock();probe_session.client.return_value=probe_sts
         mock_boto3=MagicMock();mock_boto3.Session.side_effect=[source_session,probe_session]
         import sys
