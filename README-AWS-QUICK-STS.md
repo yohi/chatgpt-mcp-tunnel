@@ -75,7 +75,7 @@ assert not Path('/home/awsuser/.aws/config').exists()
 s=boto3.Session(profile_name='aws-mcp-sts-quick')
 assert s.get_credentials().method == 'custom-process'
 arn=s.client('sts').get_caller_identity()['Arn']
-assert ':assumed-role/' in arn and '/chatgpt-mcp-quick-readonly' in arn
+assert ':assumed-role/' in arn and '/aws-mcp-quick-readonly' in arn
 print('Role-only STS identity OK (no credentials printed)')
 PY
 ```

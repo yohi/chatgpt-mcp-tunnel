@@ -18,7 +18,7 @@ STORE = Path('/run/aws-mcp-quick-sts')
 DOCUMENT = STORE / 'credentials.json'
 SOURCE_PROFILE = 'default'
 ROLE_ARN_RE = re.compile(r'^arn:aws:iam::([0-9]{12}):role/[A-Za-z0-9+=,.@_/-]+$')
-SESSION_NAME = 'chatgpt-mcp-quick-readonly'
+SESSION_NAME = 'aws-mcp-quick-readonly'
 SESSION_POLICY = 'arn:aws:iam::aws:policy/ReadOnlyAccess'
 MIN_LIFETIME = 180
 
