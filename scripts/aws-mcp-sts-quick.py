@@ -80,10 +80,37 @@ def publish(item, directory=STORE):
             os.unlink(name)
 
 
+def parse_roles(roles_input):
+    """Parse comma, space, or newline separated IAM role ARNs."""
+    if isinstance(roles_input, (list, tuple)):
+        raw_list = roles_input
+    else:
+        raw_list = re.split(r'[\s,]+', roles_input or '')
+    valid_roles = []
+    for item in raw_list:
+        item = item.strip()
+        if not item:
+            continue
+        m = ROLE_ARN_RE.fullmatch(item)
+        if not m:
+            raise ValueError(f'Invalid IAM role ARN: {item}')
+        valid_roles.append((item, m.group(1)))
+    return valid_roles
+
+
+def resolve_role_for_account(roles_input, account_id):
+    """Find the role ARN matching the given AWS account ID."""
+    roles = parse_roles(roles_input)
+    if not roles:
+        raise ValueError('No IAM role ARN configured in AWS_MCP_STS_ROLE_ARN')
+    matched = [arn for arn, acc in roles if acc == account_id]
+    if not matched:
+        configured_accs = ', '.join(acc for _, acc in roles)
+        raise ValueError(f'No role found for account {account_id}. Configured accounts: {configured_accs}')
+    return matched[0]
+
+
 def issue(role_arn, directory=STORE):
-    match = ROLE_ARN_RE.fullmatch(role_arn or '')
-    if not match:
-        raise ValueError('set a valid same-account IAM role ARN')
     check_store(directory)
     # Remove the previous session before issuance: failure does not leave a
     # silently usable credential from a different role or earlier run.
@@ -92,10 +119,17 @@ def issue(role_arn, directory=STORE):
     source = boto3.Session(profile_name=SOURCE_PROFILE)
     sts = source.client('sts')
     caller = sts.get_caller_identity()
-    if caller.get('Account') != match.group(1) or caller.get('Arn', '').endswith(':root'):
-        raise ValueError('login principal is root or role is in another account')
+    caller_account = caller.get('Account')
+    if not caller_account or caller.get('Arn', '').endswith(':root'):
+        raise ValueError('login principal is root or has invalid account')
+
+    # If multiple roles or a single role were provided, resolve to the matching account
+    target_role_arn = resolve_role_for_account(role_arn, caller_account)
+    match = ROLE_ARN_RE.fullmatch(target_role_arn)
+    assert match, "Resolved role must match regex"
+
     result = sts.assume_role(
-        RoleArn=role_arn,
+        RoleArn=target_role_arn,
         RoleSessionName=SESSION_NAME,
         DurationSeconds=3600,
         PolicyArns=[{'arn': SESSION_POLICY}],
@@ -103,7 +137,7 @@ def issue(role_arn, directory=STORE):
     creds = result['Credentials']
     expected_session_arn = (
         f'arn:aws:sts::{match.group(1)}:assumed-role/'
-        f'{role_arn.rsplit("/", 1)[-1]}/{SESSION_NAME}'
+        f'{target_role_arn.rsplit("/", 1)[-1]}/{SESSION_NAME}'
     )
     if result['AssumedRoleUser']['Arn'] != expected_session_arn:
         raise ValueError('unexpected STS role-session identity')

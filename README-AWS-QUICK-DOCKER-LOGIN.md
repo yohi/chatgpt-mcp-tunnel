@@ -3,7 +3,11 @@
 この追加パッチは、**元の `aws-mcp-quick-sts.patch` 適用済み**の作業ツリーにのみ適用します。以前のパッチは再適用しません。`.env.aws` に以下を設定します。
 
 ```dotenv
-AWS_MCP_STS_ROLE_ARN=arn:aws:iam::456720798575:role/aws-security-audit-readonly
+# 単一アカウントの場合
+AWS_MCP_STS_ROLE_ARN=arn:aws:iam::123456789012:role/aws-security-audit-readonly
+
+# 複数アカウントの場合はカンマやスペース区切りで指定可能（ログイン先アカウントと一致するものが自動選択されます）
+# AWS_MCP_STS_ROLE_ARN="arn:aws:iam::111111111111:role/readonly,arn:aws:iam::222222222222:role/readonly"
 ```
 
 対話ターミナルから次の1コマンドで起動します。

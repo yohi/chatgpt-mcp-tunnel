@@ -70,6 +70,18 @@ class CredentialProcessTest(unittest.TestCase):
         self.assertEqual(m.read_credentials(self.p)['AccessKeyId'],'ASIA-mock')
         self.assertTrue((self.p/'credentials.json').exists())
 
+    def test_multi_role_selection(self):
+        multi_roles = (
+            'arn:aws:iam::111111111111:role/AuditRole, '
+            'arn:aws:iam::222222222222:role/AuditRole'
+        )
+        self.assertEqual(
+            m.resolve_role_for_account(multi_roles, '222222222222'),
+            'arn:aws:iam::222222222222:role/AuditRole'
+        )
+        with self.assertRaises(ValueError):
+            m.resolve_role_for_account(multi_roles, '333333333333')
+
 
     def test_docker_login_startup_runner(self):
         script=(SOURCE.parent/'aws-mcp-quick-start.sh').read_text(encoding='utf-8')
