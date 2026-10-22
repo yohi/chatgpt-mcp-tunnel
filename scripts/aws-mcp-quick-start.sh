@@ -20,8 +20,8 @@ quick=(docker compose --env-file .env.aws -f compose.aws.yaml -f compose.aws.qui
 # Explicitly activate the issuer profile for config inspection. Compose
 # otherwise omits profiled services and the isolation check gets KeyError.
 # Docker Compose 2.24.4+ is required for !override of the source cache mount.
-"${quick[@]}" --profile aws-quick-sts-issue config --format json | python3 -c '
-import json,sys
+target_role_arn=$("${quick[@]}" --profile aws-quick-sts-issue config --format json | python3 -c '
+import json,re,sys
 cfg=json.load(sys.stdin)
 mcp=cfg["services"]["aws-tunnel"]
 volumes=mcp["volumes"]
@@ -31,9 +31,13 @@ assert v["target"]=="/run/aws-mcp-quick-sts" and v["read_only"], "Role volume mu
 assert "/home/awsuser/.aws" not in json.dumps(mcp), "Source login cache leaked into MCP"
 issuer=cfg["services"]["aws-quick-sts-issue"]
 assert issuer["environment"]["AWS_PROFILE"]=="default", "Issuer must use Docker default"
-assert issuer["environment"]["AWS_MCP_STS_ROLE_ARN"]=="arn:aws:iam::456720798575:role/aws-security-audit-readonly", "Unexpected target role ARN"
-print("PASS: role-only MCP volume and target role")
-'
+role_arn=issuer["environment"].get("AWS_MCP_STS_ROLE_ARN", "")
+assert re.match(r"^arn:aws:iam::([0-9]{12}):role/[A-Za-z0-9+=,.@_/-]+$", role_arn), "Invalid or missing AWS_MCP_STS_ROLE_ARN"
+print(role_arn)
+')
+expected_account=$(echo "$target_role_arn" | cut -d: -f5)
+role_name=$(echo "$target_role_arn" | sed 's|.*/||')
+echo "PASS: role-only MCP volume and valid target role ARN (${target_role_arn})"
 
 # Build only on first start / missing quick-STS helper. Subsequent starts reuse images.
 if ! docker image inspect chatgpt-mcp-tunnel:local >/dev/null 2>&1; then
@@ -75,8 +79,8 @@ echo 'Sign in using the Docker AWS CLI URL and enter the returned code in this t
 
 account=$("${base[@]}" run --rm --no-deps aws-auth sts get-caller-identity \
   --profile default --query Account --output text | tail -n 1 | tr -d '\r')
-if [[ "$account" != '456720798575' ]]; then
-  echo 'ERROR: Wrong AWS account; STS issuance aborted.' >&2
+if [[ "$account" != "$expected_account" ]]; then
+  echo "ERROR: Logged-in account ($account) does not match target role account ($expected_account); STS issuance aborted." >&2
   exit 1
 fi
 printf 'PASS: Docker login account %s\n' "$account"
@@ -86,16 +90,16 @@ printf 'PASS: Docker login account %s\n' "$account"
 "${quick[@]}" up -d --no-deps --force-recreate aws-tunnel
 
 # Confirm the effective role in the MCP container without displaying any credentials.
-"${quick[@]}" exec -T aws-tunnel python -c '
+"${quick[@]}" exec -T aws-tunnel python -c "
 import boto3
 from pathlib import Path
-assert not Path("/home/awsuser/.aws/config").exists(), "Source cache mounted in MCP"
-s=boto3.Session(profile_name="aws-mcp-sts-quick")
-assert s.get_credentials().method=="custom-process", "Unexpected credential provider"
-actual=s.client("sts").get_caller_identity()["Arn"]
-expected="arn:aws:sts::456720798575:assumed-role/aws-security-audit-readonly/aws-mcp-quick-readonly"
-assert actual==expected, "Wrong role session identity"
-print("PASS: MCP uses dedicated temporary STS role")
-'
+assert not Path('/home/awsuser/.aws/config').exists(), 'Source cache mounted in MCP'
+s=boto3.Session(profile_name='aws-mcp-sts-quick')
+assert s.get_credentials().method=='custom-process', 'Unexpected credential provider'
+actual=s.client('sts').get_caller_identity()['Arn']
+expected='arn:aws:sts::${expected_account}:assumed-role/${role_name}/aws-mcp-quick-readonly'
+assert actual==expected, f'Wrong role session identity: got {actual}, expected {expected}'
+print('PASS: MCP uses dedicated temporary STS role')
+"
 echo 'AWS MCP started with 1-hour STS credentials.'
 echo 'Run this command again before STS expiry to renew (interactive login each run).'
