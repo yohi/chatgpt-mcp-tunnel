@@ -96,10 +96,17 @@ from pathlib import Path
 assert not Path('/home/awsuser/.aws/config').exists(), 'Source cache mounted in MCP'
 s=boto3.Session(profile_name='aws-mcp-sts-quick')
 assert s.get_credentials().method=='custom-process', 'Unexpected credential provider'
-actual=s.client('sts').get_caller_identity()['Arn']
+identity=s.client('sts').get_caller_identity()
+actual=identity['Arn']
 expected='arn:aws:sts::${expected_account}:assumed-role/${role_name}/aws-mcp-quick-readonly'
 assert actual==expected, f'Wrong role session identity: got {actual}, expected {expected}'
 print('PASS: MCP uses dedicated temporary STS role')
+print('--- Current IAM Session Info ---')
+print(f'Arn:        {actual}')
+print(f'Account:    {identity.get(\"Account\")}')
+print(f'UserId:     {identity.get(\"UserId\")}')
+print(f'TargetRole: ${target_role_arn}')
+print('--------------------------------')
 "
 echo 'AWS MCP started with 1-hour STS credentials.'
 echo 'Run this command again before STS expiry to renew (interactive login each run).'
