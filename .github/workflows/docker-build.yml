@@ -52,6 +52,9 @@ jobs:
               exit 1
             fi
           '
+          docker run --rm --env FILESYSTEM_HOST_PATH=/tmp \
+            --entrypoint /usr/local/bin/filesystem-entrypoint \
+            chatgpt-filesystem-mcp-tunnel:ci --version
       - name: Validate AWS Compose files (no AWS credentials)
         run: |
           docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet

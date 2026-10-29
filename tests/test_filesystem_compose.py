@@ -58,6 +58,16 @@ class FilesystemComposeTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('must be an absolute path', result.stderr)
 
+    def test_entrypoint_accepts_absolute_filesystem_path(self):
+        result = subprocess.run(
+            ['sh', str(ROOT / 'scripts/filesystem-entrypoint.sh'), '--version'],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, 'FILESYSTEM_HOST_PATH': '/tmp'},
+        )
+        self.assertNotIn('must be an absolute path', result.stderr)
+
     def test_ci_validates_and_smoke_tests_filesystem_image(self):
         workflow = (ROOT / '.github/workflows/docker-build.yml').read_text(encoding='utf-8')
         self.assertIn(
@@ -70,6 +80,21 @@ class FilesystemComposeTest(unittest.TestCase):
         )
         self.assertIn('docker pull node:24-bookworm-slim', workflow)
         self.assertIn('command -v mcp-server-filesystem', workflow)
+        self.assertIn('--env FILESYSTEM_HOST_PATH=/tmp', workflow)
+        self.assertIn('--entrypoint /usr/local/bin/filesystem-entrypoint', workflow)
+        self.assertIn('chatgpt-filesystem-mcp-tunnel:ci --version', workflow)
+        self.assertLess(
+            workflow.index('docker build --pull --tag chatgpt-mcp-tunnel:ci .'),
+            workflow.index('docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local'),
+        )
+        self.assertLess(
+            workflow.index('docker pull node:24-bookworm-slim'),
+            workflow.index('docker build -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .'),
+        )
+        self.assertLess(
+            workflow.index('docker build -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .'),
+            workflow.index('Smoke-test Filesystem image (no credentials)'),
+        )
 
 
 if __name__ == '__main__':
