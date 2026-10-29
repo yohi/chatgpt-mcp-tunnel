@@ -38,7 +38,8 @@ jobs:
       - name: Build Filesystem MCP image
         run: |
           docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
-          docker build --pull -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .
+          docker pull node:24-bookworm-slim
+          docker build -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .
       - name: Smoke-test Filesystem image (no credentials)
         run: |
           docker run --rm --entrypoint sh chatgpt-filesystem-mcp-tunnel:ci -ec '

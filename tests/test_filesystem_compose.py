@@ -53,9 +53,10 @@ class FilesystemComposeTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            'docker build --pull -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .',
+            'docker build -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .',
             workflow,
         )
+        self.assertIn('docker pull node:24-bookworm-slim', workflow)
         self.assertIn('command -v mcp-server-filesystem', workflow)
 
 
