@@ -9,7 +9,7 @@ RUN apt-get update \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install --global --omit=dev @modelcontextprotocol/server-filesystem@2.1.0 \
+RUN npm install --global --omit=dev --ignore-scripts @modelcontextprotocol/server-filesystem@2.1.0 \
     && npm cache clean --force
 
 COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
