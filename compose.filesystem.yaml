@@ -21,6 +21,7 @@ services:
     environment:
       CONTROL_PLANE_API_KEY: ${FILESYSTEM_CONTROL_PLANE_API_KEY:?Set FILESYSTEM_CONTROL_PLANE_API_KEY in .env.filesystem}
       CONTROL_PLANE_TUNNEL_ID: ${FILESYSTEM_CONTROL_PLANE_TUNNEL_ID:?Set FILESYSTEM_CONTROL_PLANE_TUNNEL_ID in .env.filesystem}
+      FILESYSTEM_HOST_PATH: ${FILESYSTEM_HOST_PATH:?Set FILESYSTEM_HOST_PATH in .env.filesystem}
       MCP_COMMAND: mcp-server-filesystem /projects
       HEALTH_LISTEN_ADDR: 127.0.0.1:18082
     healthcheck:

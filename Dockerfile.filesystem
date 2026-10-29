@@ -13,9 +13,10 @@ RUN npm install --global --omit=dev @modelcontextprotocol/server-filesystem@2.1.
     && npm cache clean --force
 
 COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
+COPY --chmod=0755 scripts/filesystem-entrypoint.sh /usr/local/bin/filesystem-entrypoint
 
 USER node
 ENV HOME=/home/node
 
-ENTRYPOINT ["tunnel-client"]
+ENTRYPOINT ["/usr/local/bin/filesystem-entrypoint"]
 CMD ["run"]

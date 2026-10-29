@@ -38,6 +38,7 @@ class FilesystemComposeTest(unittest.TestCase):
             'tunnel_filesystem_test',
         )
         self.assertIn('mcp-server-filesystem /projects', service['environment']['MCP_COMMAND'])
+        self.assertEqual(service['environment']['FILESYSTEM_HOST_PATH'], directory)
         self.assertTrue(any(
             mount['target'] == '/projects'
             and mount['read_only']
@@ -45,6 +46,17 @@ class FilesystemComposeTest(unittest.TestCase):
             for mount in service['volumes']
         ))
         self.assertNotIn('ports', service)
+
+    def test_entrypoint_rejects_relative_filesystem_path(self):
+        result = subprocess.run(
+            ['sh', str(ROOT / 'scripts/filesystem-entrypoint.sh'), 'run'],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, 'FILESYSTEM_HOST_PATH': 'relative/path'},
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('must be an absolute path', result.stderr)
 
     def test_ci_validates_and_smoke_tests_filesystem_image(self):
         workflow = (ROOT / '.github/workflows/docker-build.yml').read_text(encoding='utf-8')

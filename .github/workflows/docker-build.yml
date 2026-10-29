@@ -47,7 +47,10 @@ jobs:
             command -v tunnel-client
             command -v mcp-server-filesystem
             node -e "const [major, minor, patch] = process.versions.node.split(\".\").map(Number); if (major < 24 || (major === 24 && (minor < 22 || (minor === 22 && patch < 1)))) process.exit(1)"
-            tunnel-client --version
+            if FILESYSTEM_HOST_PATH=relative /usr/local/bin/filesystem-entrypoint run; then
+              echo "relative filesystem paths must be rejected" >&2
+              exit 1
+            fi
           '
       - name: Validate AWS Compose files (no AWS credentials)
         run: |
