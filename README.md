@@ -145,9 +145,48 @@ Tunnel ID and an independent credential cache volume. It also defaults to
 See **[AWS setup and security walkthrough](README-AWS.md)**.
 Do not use the Atlassian `.env` for the AWS service.
 
+## Optional read-only Filesystem MCP Tunnel
+
+The Filesystem MCP server can expose one host directory to ChatGPT through a
+**separate OpenAI Tunnel ID**. It runs in its own container and uses a
+read-only bind mount; filesystem write tools cannot modify the mounted host
+directory.
+
+```bash
+cp .env.filesystem.example .env.filesystem
+chmod 600 .env.filesystem
+${EDITOR:-vi} .env.filesystem
+
+# Build the existing tunnel-client image first; the filesystem image reuses it.
+docker build -t chatgpt-mcp-tunnel:local .
+docker compose -f compose.filesystem.yaml --env-file .env.filesystem build
+docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
+  --env-file .env.filesystem up -d
+docker compose -p chatgpt-filesystem -f compose.filesystem.yaml ps
+```
+
+Set `FILESYSTEM_HOST_PATH` to an absolute path for a directory you intend to
+share. The service mounts only that directory at `/projects` with `read_only`
+enabled. Avoid broad paths such as `/`, `$HOME`, or directories containing
+credentials. Create a separate Tunnel in OpenAI Platform and configure its ID
+and runtime API key in `.env.filesystem`; do not reuse the Atlassian or AWS
+Tunnel ID. Associate the Filesystem Tunnel with the intended ChatGPT workspace,
+then add it as a custom MCP server with **Connection: Tunnel**.
+
+The official server advertises write-capable tools, but the read-only container
+mount is the enforcement boundary. Stop it with:
+
+```bash
+docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
+  --env-file .env.filesystem down
+```
+
+Do not use the Atlassian `.env` or `.env.aws` for this service.
+
 ## Upstream references
 
 - [OpenAI Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
 - [OpenAI tunnel-client Docker documentation](https://github.com/openai/tunnel-client/blob/master/docs/deployment/docker.md)
 - [mcp-remote (OAuth flags and storage)](https://github.com/punkpeye/mcp-remote)
+- [Official MCP Filesystem server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
 - [mcp-remote Docker OAuth limitation](https://github.com/punkpeye/mcp-remote/issues/60)

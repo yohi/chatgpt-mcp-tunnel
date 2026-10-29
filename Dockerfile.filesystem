@@ -1,0 +1,19 @@
+FROM chatgpt-mcp-tunnel:local AS tunnel-source
+
+FROM node:24-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install --global --omit=dev @modelcontextprotocol/server-filesystem@2.1.0 \
+    && npm cache clean --force
+
+COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
+
+USER node
+ENV HOME=/home/node
+
+ENTRYPOINT ["tunnel-client"]
+CMD ["run"]
