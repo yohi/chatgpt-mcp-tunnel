@@ -162,7 +162,8 @@ docker build -t chatgpt-mcp-tunnel:local .
 docker compose -f compose.filesystem.yaml --env-file .env.filesystem build
 docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
   --env-file .env.filesystem up -d
-docker compose -p chatgpt-filesystem -f compose.filesystem.yaml ps
+docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
+  --env-file .env.filesystem ps
 ```
 
 Set `FILESYSTEM_HOST_PATH` to an absolute path for a directory you intend to
