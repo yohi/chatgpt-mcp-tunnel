@@ -46,6 +46,18 @@ class FilesystemComposeTest(unittest.TestCase):
         ))
         self.assertNotIn('ports', service)
 
+    def test_ci_validates_and_smoke_tests_filesystem_image(self):
+        workflow = (ROOT / '.github/workflows/docker-build.yml').read_text(encoding='utf-8')
+        self.assertIn(
+            'docker compose --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet',
+            workflow,
+        )
+        self.assertIn(
+            'docker build --pull -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .',
+            workflow,
+        )
+        self.assertIn('command -v mcp-server-filesystem', workflow)
+
 
 if __name__ == '__main__':
     unittest.main()

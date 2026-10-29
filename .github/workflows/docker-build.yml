@@ -33,6 +33,21 @@ jobs:
             command -v mcp-remote-client
             tunnel-client --version
           '
+      - name: Validate Filesystem Compose files (no credentials)
+        run: docker compose --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet
+      - name: Build Filesystem MCP image
+        run: |
+          docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
+          docker build --pull -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .
+      - name: Smoke-test Filesystem image (no credentials)
+        run: |
+          docker run --rm --entrypoint sh chatgpt-filesystem-mcp-tunnel:ci -ec '
+            test -s /etc/ssl/certs/ca-certificates.crt
+            command -v tunnel-client
+            command -v mcp-server-filesystem
+            node -e "const [major, minor, patch] = process.versions.node.split(\".\").map(Number); if (major < 24 || (major === 24 && (minor < 22 || (minor === 22 && patch < 1)))) process.exit(1)"
+            tunnel-client --version
+          '
       - name: Validate AWS Compose files (no AWS credentials)
         run: |
           docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet

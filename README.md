@@ -168,9 +168,12 @@ docker compose -p chatgpt-filesystem -f compose.filesystem.yaml ps
 Set `FILESYSTEM_HOST_PATH` to an absolute path for a directory you intend to
 share. The service mounts only that directory at `/projects` with `read_only`
 enabled. Avoid broad paths such as `/`, `$HOME`, or directories containing
-credentials. Create a separate Tunnel in OpenAI Platform and configure its ID
-and runtime API key in `.env.filesystem`; do not reuse the Atlassian or AWS
-Tunnel ID. Associate the Filesystem Tunnel with the intended ChatGPT workspace,
+credentials. The image requires a Node.js 24 runtime at version 24.22.1 or
+newer; rebuild the image to pick up patched base-image releases. Create a
+separate Tunnel in OpenAI Platform and configure its ID and runtime API key in
+`.env.filesystem`; do not reuse the Atlassian or AWS Tunnel ID. Run only one
+`tunnel-client` instance for this Tunnel ID, including during restarts or
+updates. Associate the Filesystem Tunnel with the intended ChatGPT workspace,
 then add it as a custom MCP server with **Connection: Tunnel**.
 
 The official server advertises write-capable tools, but the read-only container

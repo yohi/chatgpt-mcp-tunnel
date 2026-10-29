@@ -2,6 +2,8 @@ FROM chatgpt-mcp-tunnel:local AS tunnel-source
 
 FROM node:24-bookworm-slim
 
+RUN node -e 'const [major, minor, patch] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && (minor < 22 || (minor === 22 && patch < 1)))) process.exit(1)'
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && update-ca-certificates \
