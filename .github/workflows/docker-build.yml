@@ -33,6 +33,28 @@ jobs:
             command -v mcp-remote-client
             tunnel-client --version
           '
+      - name: Validate Filesystem Compose files (no credentials)
+        run: docker compose --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet
+      - name: Build Filesystem MCP image
+        run: |
+          docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
+          docker pull node:24-bookworm-slim
+          docker build -f Dockerfile.filesystem --tag chatgpt-filesystem-mcp-tunnel:ci .
+      - name: Smoke-test Filesystem image (no credentials)
+        run: |
+          docker run --rm --entrypoint sh chatgpt-filesystem-mcp-tunnel:ci -ec '
+            test -s /etc/ssl/certs/ca-certificates.crt
+            command -v tunnel-client
+            command -v mcp-server-filesystem
+            node -e "const [major, minor, patch] = process.versions.node.split(\".\").map(Number); if (major < 24 || (major === 24 && (minor < 22 || (minor === 22 && patch < 1)))) process.exit(1)"
+            if FILESYSTEM_HOST_PATH=relative /usr/local/bin/filesystem-entrypoint run; then
+              echo "relative filesystem paths must be rejected" >&2
+              exit 1
+            fi
+          '
+          docker run --rm --env FILESYSTEM_HOST_PATH=/tmp \
+            --entrypoint /usr/local/bin/filesystem-entrypoint \
+            chatgpt-filesystem-mcp-tunnel:ci --version
       - name: Validate AWS Compose files (no AWS credentials)
         run: |
           docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet

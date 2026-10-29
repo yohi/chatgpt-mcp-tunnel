@@ -1,0 +1,22 @@
+FROM chatgpt-mcp-tunnel:local AS tunnel-source
+
+FROM node:24-bookworm-slim
+
+RUN node -e 'const [major, minor, patch] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && (minor < 22 || (minor === 22 && patch < 1)))) process.exit(1)'
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install --global --omit=dev --ignore-scripts @modelcontextprotocol/server-filesystem@2.1.0 \
+    && npm cache clean --force
+
+COPY --from=tunnel-source /usr/local/bin/tunnel-client /usr/local/bin/tunnel-client
+COPY --chmod=0755 scripts/filesystem-entrypoint.sh /usr/local/bin/filesystem-entrypoint
+
+USER node
+ENV HOME=/home/node
+
+ENTRYPOINT ["/usr/local/bin/filesystem-entrypoint"]
+CMD ["run"]

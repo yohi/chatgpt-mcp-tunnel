@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 !.env.aws.example
+!.env.filesystem.example
 secrets/
 .mcp-auth/
 *.log
