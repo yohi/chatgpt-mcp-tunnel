@@ -56,17 +56,40 @@ run_compose() {
     selected_compose_file=$2
     shift 2
 
+    include_local_override=0
+    if [ "$selected_compose_file" = compose.atlassian.yaml ] &&
+        [ -f "$repo_root/compose.override.yaml" ]; then
+        include_local_override=1
+    fi
+
     if [ "$selected_env_file" = .env ]; then
-        docker compose \
-            --env-file "$repo_root/.env" \
-            -f "$repo_root/$selected_compose_file" \
-            "$@"
+        if [ "$include_local_override" -eq 1 ]; then
+            docker compose \
+                --env-file "$repo_root/.env" \
+                -f "$repo_root/$selected_compose_file" \
+                -f "$repo_root/compose.override.yaml" \
+                "$@"
+        else
+            docker compose \
+                --env-file "$repo_root/.env" \
+                -f "$repo_root/$selected_compose_file" \
+                "$@"
+        fi
     else
-        docker compose \
-            --env-file "$repo_root/.env" \
-            --env-file "$repo_root/$selected_env_file" \
-            -f "$repo_root/$selected_compose_file" \
-            "$@"
+        if [ "$include_local_override" -eq 1 ]; then
+            docker compose \
+                --env-file "$repo_root/.env" \
+                --env-file "$repo_root/$selected_env_file" \
+                -f "$repo_root/$selected_compose_file" \
+                -f "$repo_root/compose.override.yaml" \
+                "$@"
+        else
+            docker compose \
+                --env-file "$repo_root/.env" \
+                --env-file "$repo_root/$selected_env_file" \
+                -f "$repo_root/$selected_compose_file" \
+                "$@"
+        fi
     fi
 }
 
@@ -138,7 +161,7 @@ result=0
 for service in $selected_services; do
     case "$service" in
         atlassian)
-            compose_file=compose.yaml
+            compose_file=compose.atlassian.yaml
             compose_service=tunnel
             env_file=.env.atlassian
             [ "$legacy_atlassian" -eq 0 ] || env_file=.env

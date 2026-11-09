@@ -14,7 +14,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_SOURCE = ROOT / "scripts" / "mcp-tunnel"
 SERVICES = {
-    "--atlassian": "compose.yaml",
+    "--atlassian": "compose.atlassian.yaml",
     "--aws": "compose.aws.yaml",
     "--filesystem": "compose.filesystem.yaml",
 }
@@ -94,7 +94,7 @@ class McpTunnelRunnerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.docker_calls()
         self.assertEqual(len(calls), 1)
-        self.assertTrue(any(argument.endswith("compose.yaml") for argument in calls[0]))
+        self.assertTrue(any(argument.endswith("compose.atlassian.yaml") for argument in calls[0]))
         self.assertIn("tunnel", calls[0])
 
     def test_aws_selection_maps_to_aws_compose_service(self) -> None:
@@ -161,9 +161,21 @@ class McpTunnelRunnerTest(unittest.TestCase):
                 "compose",
                 "--env-file", str(self.root / ".env"),
                 "--env-file", str(self.root / ".env.atlassian"),
-                "-f", str(self.root / "compose.yaml"),
+                "-f", str(self.root / "compose.atlassian.yaml"),
                 "up", "-d", "tunnel",
             ]],
+        )
+
+    def test_atlassian_loads_existing_local_compose_override(self) -> None:
+        (self.root / "compose.override.yaml").write_text("services: {}\n", encoding="utf-8")
+
+        result = self.run_runner("--atlassian")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        call = self.docker_calls()[0]
+        self.assertEqual(
+            [call[index + 1] for index, argument in enumerate(call) if argument == "-f"],
+            [str(self.root / "compose.atlassian.yaml"), str(self.root / "compose.override.yaml")],
         )
 
     def test_lifecycle_operations_map_to_compose_commands(self) -> None:
@@ -241,7 +253,7 @@ class McpTunnelRunnerTest(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][-2:], ["stop", "tunnel"])
         self.assertEqual(calls[1][-3:], ["rm", "--force", "tunnel"])
-        self.assertTrue(all("compose.yaml" in " ".join(call) for call in calls))
+        self.assertTrue(all("compose.atlassian.yaml" in " ".join(call) for call in calls))
         self.assertFalse(any("down" in call or "volume" in call or "network" in call for call in calls))
 
     def test_multi_service_operation_continues_after_one_service_fails(self) -> None:

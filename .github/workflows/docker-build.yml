@@ -13,9 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Atlassian Compose files (no credentials)
-        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.yaml --profile auth config --quiet
+        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.atlassian.yaml --profile auth config --quiet
       - name: Validate optional CA override
-        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.yaml -f compose.override.example.yaml --profile auth config --quiet
+        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.atlassian.yaml -f compose.override.example.yaml --profile auth config --quiet
       - name: Test MCP Tunnel command and Filesystem Compose behavior
         run: |
           python3 -m unittest discover -s tests -p 'test_mcp_tunnel.py' -v

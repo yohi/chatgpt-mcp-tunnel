@@ -41,6 +41,7 @@ scripts/mcp-tunnel build --atlassian
 # One-time OAuth: prints a URL to the terminal; open it on this Linux host.
 # Keep this command running while authenticating.
 docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml \
   --profile auth run --rm auth
 ```
 
@@ -87,6 +88,7 @@ scripts/mcp-tunnel down --atlassian
 scripts/mcp-tunnel --atlassian
 # Re-run the OAuth diagnostic after stopping tunnel if auth expires:
 docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml \
   --profile auth run --rm auth
 ```
 
@@ -129,9 +131,11 @@ One observed failure was an OpenAI control-plane poll in `backoff` while `/ready
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' https://api.openai.com/v1/models
 
 # Container CA presence and basic HTTPS check:
-docker compose --env-file .env --env-file .env.atlassian exec -T tunnel \
+docker compose --env-file .env --env-file .env.atlassian -f compose.atlassian.yaml \
+  exec -T tunnel \
   sh -c 'test -s /etc/ssl/certs/ca-certificates.crt && echo "CA bundle present"'
-docker compose --env-file .env --env-file .env.atlassian exec -T tunnel node -e \
+docker compose --env-file .env --env-file .env.atlassian -f compose.atlassian.yaml \
+  exec -T tunnel node -e \
   'fetch("https://api.openai.com/v1/models").then(r=>console.log(r.status)).catch(e=>{console.error(e.cause?.code||e.message);process.exit(1)})'
 
 # Health: do not infer poll success merely from /readyz = 200.
@@ -142,11 +146,12 @@ The Dockerfile installs the Debian `ca-certificates` package explicitly into the
 
 ```bash
 cp compose.override.example.yaml compose.override.yaml
-docker compose --env-file .env --env-file .env.atlassian config --quiet
-docker compose --env-file .env --env-file .env.atlassian up -d --force-recreate tunnel
+docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml -f compose.override.yaml config --quiet
+scripts/mcp-tunnel --atlassian
 ```
 
-This mounts the host bundle read-only and sets `SSL_CERT_FILE` for Go's `tunnel-client` and `NODE_EXTRA_CA_CERTS` for Node's `mcp-remote`. The override applies to both `tunnel` and `auth`. Check that your host CA store is trustworthy; **do not disable TLS verification**. This example is unsuitable for hosts whose trust bundle is at a different path; customize the file locally. `compose.override.yaml` is intentionally ignored by Git and Docker build context.
+This mounts the host bundle read-only and sets `SSL_CERT_FILE` for Go's `tunnel-client` and `NODE_EXTRA_CA_CERTS` for Node's `mcp-remote`. The runner automatically includes the local override for the Atlassian tunnel; when running the `auth` helper manually, add `-f compose.override.yaml` to its Compose command as well. Check that your host CA store is trustworthy; **do not disable TLS verification**. This example is unsuitable for hosts whose trust bundle is at a different path; customize the file locally. `compose.override.yaml` is intentionally ignored by Git and Docker build context.
 
 If the issue remains, inspect proxy environment configuration, certificate chain, DNS, and the actual TLS issuer seen **inside** the container before changing trust roots. The exact way CA trust was corrected on the first verified workstation was not recorded; this override is a documented remediation option, not a claim about the specific past action.
 
