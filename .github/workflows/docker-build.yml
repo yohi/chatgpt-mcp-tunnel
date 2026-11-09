@@ -12,16 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Compose
-        env:
-          CONTROL_PLANE_API_KEY: placeholder-ci-key
-          CONTROL_PLANE_TUNNEL_ID: tunnel_placeholder
-        run: docker compose --profile auth config --quiet
+      - name: Validate Atlassian Compose files (no credentials)
+        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.yaml --profile auth config --quiet
       - name: Validate optional CA override
-        env:
-          CONTROL_PLANE_API_KEY: placeholder-ci-key
-          CONTROL_PLANE_TUNNEL_ID: tunnel_placeholder
-        run: docker compose -f compose.yaml -f compose.override.example.yaml --profile auth config --quiet
+        run: docker compose --env-file .env.example --env-file .env.atlassian.example -f compose.yaml -f compose.override.example.yaml --profile auth config --quiet
+      - name: Test MCP Tunnel command and Filesystem Compose behavior
+        run: |
+          python3 -m unittest discover -s tests -p 'test_mcp_tunnel.py' -v
+          python3 -m unittest discover -s tests -p 'test_filesystem_compose.py' -v
+          shellcheck scripts/mcp-tunnel
+          sh -n scripts/mcp-tunnel
       - name: Build image (no credentials)
         run: docker build --pull --tag chatgpt-mcp-tunnel:ci .
       - name: Smoke-test image and CA trust bundle
@@ -34,7 +34,7 @@ jobs:
             tunnel-client --version
           '
       - name: Validate Filesystem Compose files (no credentials)
-        run: docker compose --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet
+        run: docker compose --env-file .env.example --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet
       - name: Build Filesystem MCP image
         run: |
           docker tag chatgpt-mcp-tunnel:ci chatgpt-mcp-tunnel:local
@@ -57,11 +57,11 @@ jobs:
             chatgpt-filesystem-mcp-tunnel:ci --version
       - name: Validate AWS Compose files (no AWS credentials)
         run: |
-          docker compose --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet
-          docker compose --env-file .env.aws.example -f compose.aws.yaml -f compose.aws.ca.example.yaml --profile aws-auth config --quiet
+          docker compose --env-file .env.example --env-file .env.aws.example -f compose.aws.yaml --profile aws-auth config --quiet
+          docker compose --env-file .env.example --env-file .env.aws.example -f compose.aws.yaml -f compose.aws.ca.example.yaml --profile aws-auth config --quiet
       - name: Verify AWS detailed health is internal-only
         run: |
-          docker compose --env-file .env.aws.example -f compose.aws.yaml config --format json \
+          docker compose --env-file .env.example --env-file .env.aws.example -f compose.aws.yaml config --format json \
             | python3 -c '
           import json
           import sys
@@ -99,18 +99,20 @@ jobs:
           docker tag chatgpt-aws-mcp-tunnel:ci chatgpt-aws-mcp-tunnel:local
           # Test the actual Compose one-shot helper with CAP_CHOWN only.
           # It must work when the cached SSO directory is private (0700).
-          docker compose --env-file .env.aws.example -f compose.aws.yaml \
+          docker compose --env-file .env.example --env-file .env.aws.example -f compose.aws.yaml \
             run --rm --no-deps aws-sso-init
-          docker compose --env-file .env.aws.example -f compose.aws.yaml \
+          docker compose --env-file .env.example --env-file .env.aws.example -f compose.aws.yaml \
             run --rm --no-deps --entrypoint sh aws-tunnel \
             -c 'test -w /home/awsuser/.aws && touch /home/awsuser/.aws/.ci-probe && rm /home/awsuser/.aws/.ci-probe'
           # Clean up only this unique, CI-owned volume (never user credentials).
           docker volume rm "${COMPOSE_PROJECT_NAME}_aws-sso-data"
       - name: Ensure local-only override stays ignored
         run: |
-          touch compose.override.yaml .env.aws
+          touch compose.override.yaml .env.aws .env.atlassian
           git check-ignore -q compose.override.yaml
           git check-ignore -q .env.aws
+          git check-ignore -q .env.atlassian
+          git check-ignore -q .env.atlassian.example && exit 1 || true
           git check-ignore -q .env.aws.example && exit 1 || true
           ! git ls-files --error-unmatch compose.override.yaml 2>/dev/null
           ! git ls-files --error-unmatch .env.aws 2>/dev/null

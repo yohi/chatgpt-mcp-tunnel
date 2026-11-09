@@ -71,7 +71,7 @@ class FilesystemComposeTest(unittest.TestCase):
     def test_ci_validates_and_smoke_tests_filesystem_image(self):
         workflow = (ROOT / '.github/workflows/docker-build.yml').read_text(encoding='utf-8')
         self.assertIn(
-            'docker compose --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet',
+            'docker compose --env-file .env.example --env-file .env.filesystem.example -f compose.filesystem.yaml config --quiet',
             workflow,
         )
         self.assertIn(
