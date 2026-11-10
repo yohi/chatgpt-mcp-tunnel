@@ -47,7 +47,15 @@ class McpTunnelRunnerTest(unittest.TestCase):
             "\"a\"); f.write(json.dumps(sys.argv[2:])+\"\\n\"); f.close()' "
             '"$DOCKER_CALL_LOG" "$@"\n'
             'case "$*" in\n'
-            '  *compose.aws.yaml*) [ "${FAIL_AWS:-0}" != 1 ] || exit 23 ;;\n'
+            '  *"config --volumes"*)\n'
+            '    if [ "$DOCKER_MODE" = unsafe-volume ]; then printf "oauth-data\\nextra-volume\\n"; else printf "oauth-data\\n"; fi ;;\n'
+            '  *"config --networks"*) [ "$DOCKER_MODE" != unsafe-network ] || printf "extra-network\\n" ;;\n'
+            '  *"config --services"*)\n'
+            '    if [ "$DOCKER_MODE" = unsafe-service ]; then printf "tunnel\\nextra-service\\n"; else printf "tunnel\\n"; fi ;;\n'
+            'esac\n'
+            'case "$*" in\n'
+            '  *compose.aws.yaml*) [ "$DOCKER_MODE" != fail-aws ] || exit 23 ;;\n'
+            '  *"--profile auth run --rm auth"*) [ "$DOCKER_MODE" != fail-auth ] || exit 24 ;;\n'
             'esac\n',
             encoding="utf-8",
         )
@@ -63,12 +71,12 @@ class McpTunnelRunnerTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-    def run_runner(self, *arguments: str, fail_aws: bool = False) -> subprocess.CompletedProcess[str]:
+    def run_runner(self, *arguments: str, docker_mode: str = "") -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PATH"] = f"{self.bin_directory}{os.pathsep}{environment['PATH']}"
         environment["DOCKER_CALL_LOG"] = str(self.call_log)
         environment["DOCKER_CALL_CWD_LOG"] = str(self.cwd_log)
-        environment["FAIL_AWS"] = "1" if fail_aws else "0"
+        environment["DOCKER_MODE"] = docker_mode
         return subprocess.run(
             ["sh", str(self.runner), *arguments],
             cwd=self.run_cwd,
@@ -178,6 +186,55 @@ class McpTunnelRunnerTest(unittest.TestCase):
             [str(self.root / "compose.atlassian.yaml"), str(self.root / "compose.override.yaml")],
         )
 
+    def test_reauth_resets_oauth_then_authenticates_and_restarts(self) -> None:
+        (self.root / "compose.override.yaml").write_text("services: {}\n", encoding="utf-8")
+
+        result = self.run_runner("reauth", "--atlassian")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.docker_calls()
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(calls[0][-2:], ["config", "--volumes"])
+        self.assertEqual(calls[1][-2:], ["config", "--networks"])
+        self.assertEqual(calls[2][-2:], ["config", "--services"])
+        self.assertEqual(calls[3][-2:], ["down", "--volumes"])
+        self.assertEqual(calls[4][-5:], ["--profile", "auth", "run", "--rm", "auth"])
+        self.assertEqual(calls[5][-3:], ["up", "-d", "tunnel"])
+        for call in calls:
+            compose_files = [
+                call[index + 1]
+                for index, argument in enumerate(call)
+                if argument == "-f"
+            ]
+            self.assertEqual(
+                compose_files,
+                [str(self.root / "compose.atlassian.yaml"), str(self.root / "compose.override.yaml")],
+            )
+
+    def test_reauth_refuses_unexpected_volumes_networks_or_services(self) -> None:
+        for docker_mode in ("unsafe-volume", "unsafe-network", "unsafe-service"):
+            with self.subTest(docker_mode=docker_mode):
+                self.call_log.unlink(missing_ok=True)
+                result = self.run_runner("reauth", "--atlassian", docker_mode=docker_mode)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("refusing to reset", result.stderr.lower())
+                self.assertFalse(any("down" in call for call in self.docker_calls()))
+
+    def test_reauth_does_not_restart_tunnel_if_auth_fails(self) -> None:
+        result = self.run_runner("reauth", "--atlassian", docker_mode="fail-auth")
+
+        self.assertNotEqual(result.returncode, 0)
+        calls = self.docker_calls()
+        self.assertTrue(any("--profile" in call and "auth" in call for call in calls))
+        self.assertFalse(any("up" in call for call in calls))
+
+    def test_reauth_only_accepts_atlassian(self) -> None:
+        result = self.run_runner("reauth", "--aws")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.docker_calls(), [])
+
     def test_lifecycle_operations_map_to_compose_commands(self) -> None:
         expected_commands = {
             "status": ["ps", "tunnel"],
@@ -257,7 +314,7 @@ class McpTunnelRunnerTest(unittest.TestCase):
         self.assertFalse(any("down" in call or "volume" in call or "network" in call for call in calls))
 
     def test_multi_service_operation_continues_after_one_service_fails(self) -> None:
-        result = self.run_runner("--aws", "--filesystem", fail_aws=True)
+        result = self.run_runner("--aws", "--filesystem", docker_mode="fail-aws")
 
         self.assertNotEqual(result.returncode, 0)
         calls = self.docker_calls()
