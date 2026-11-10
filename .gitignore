@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.atlassian.example
 !.env.aws.example
 !.env.filesystem.example
 secrets/

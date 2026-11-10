@@ -1,0 +1,221 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/mcp-tunnel [up] (--atlassian | --aws | --filesystem | --all)...
+       scripts/mcp-tunnel --help
+
+Operations: up (default), down, status, logs, build
+Services:   --atlassian, --aws, --filesystem, --all
+EOF
+}
+
+fail_usage() {
+    printf '%s\n' "$1" >&2
+    usage >&2
+    exit 2
+}
+
+has_legacy_atlassian_env() {
+    grep -Eq '^[[:space:]]*(export[[:space:]]+)?CONTROL_PLANE_TUNNEL_ID=' "$repo_root/.env" &&
+        grep -Eq '^[[:space:]]*(export[[:space:]]+)?CONTROL_PLANE_API_KEY=' "$repo_root/.env"
+}
+
+validate_env_files() {
+    if [ ! -f "$repo_root/.env" ]; then
+        printf '%s\n' 'Missing .env. Create it with: cp .env.example .env' >&2
+        return 1
+    fi
+
+    if [ "$atlassian" -eq 1 ] && [ ! -f "$repo_root/.env.atlassian" ]; then
+        if has_legacy_atlassian_env; then
+            legacy_atlassian=1
+            printf '%s\n' 'Warning: using legacy Atlassian credentials from .env; move them to .env.atlassian.' >&2
+        else
+            printf '%s\n' 'Missing .env.atlassian. Create it with: cp .env.atlassian.example .env.atlassian' >&2
+            return 1
+        fi
+    fi
+
+    if [ "$aws" -eq 1 ] && [ ! -f "$repo_root/.env.aws" ]; then
+        printf '%s\n' 'Missing .env.aws. Create it with: cp .env.aws.example .env.aws' >&2
+        return 1
+    fi
+
+    if [ "$filesystem" -eq 1 ] && [ ! -f "$repo_root/.env.filesystem" ]; then
+        printf '%s\n' 'Missing .env.filesystem. Create it with: cp .env.filesystem.example .env.filesystem' >&2
+        return 1
+    fi
+
+    return 0
+}
+
+run_compose() {
+    selected_env_file=$1
+    selected_compose_file=$2
+    shift 2
+
+    include_local_override=0
+    if [ "$selected_compose_file" = compose.atlassian.yaml ] &&
+        [ -f "$repo_root/compose.override.yaml" ]; then
+        include_local_override=1
+    fi
+
+    if [ "$selected_env_file" = .env ]; then
+        if [ "$include_local_override" -eq 1 ]; then
+            docker compose \
+                --env-file "$repo_root/.env" \
+                -f "$repo_root/$selected_compose_file" \
+                -f "$repo_root/compose.override.yaml" \
+                "$@"
+        else
+            docker compose \
+                --env-file "$repo_root/.env" \
+                -f "$repo_root/$selected_compose_file" \
+                "$@"
+        fi
+    else
+        if [ "$include_local_override" -eq 1 ]; then
+            docker compose \
+                --env-file "$repo_root/.env" \
+                --env-file "$repo_root/$selected_env_file" \
+                -f "$repo_root/$selected_compose_file" \
+                -f "$repo_root/compose.override.yaml" \
+                "$@"
+        else
+            docker compose \
+                --env-file "$repo_root/.env" \
+                --env-file "$repo_root/$selected_env_file" \
+                -f "$repo_root/$selected_compose_file" \
+                "$@"
+        fi
+    fi
+}
+
+script_dir=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
+repo_root=$(CDPATH='' cd -P "$script_dir/.." && pwd)
+
+operation=up
+atlassian=0
+aws=0
+filesystem=0
+all=0
+
+if [ "$#" -gt 0 ]; then
+    case "$1" in
+        up|down|status|logs|build)
+            operation=$1
+            shift
+            ;;
+    esac
+fi
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --atlassian)
+            [ "$atlassian" -eq 0 ] || fail_usage 'Duplicate service selection: --atlassian'
+            atlassian=1
+            ;;
+        --aws)
+            [ "$aws" -eq 0 ] || fail_usage 'Duplicate service selection: --aws'
+            aws=1
+            ;;
+        --filesystem)
+            [ "$filesystem" -eq 0 ] || fail_usage 'Duplicate service selection: --filesystem'
+            filesystem=1
+            ;;
+        --all)
+            [ "$all" -eq 0 ] || fail_usage 'Duplicate service selection: --all'
+            all=1
+            ;;
+        *)
+            fail_usage "Unknown operation or option: $1"
+            ;;
+    esac
+    shift
+done
+
+if [ "$all" -eq 1 ]; then
+    [ "$atlassian$aws$filesystem" = 000 ] || fail_usage '--all cannot be combined with service selectors'
+    atlassian=1
+    aws=1
+    filesystem=1
+fi
+
+[ "$((atlassian + aws + filesystem))" -gt 0 ] || fail_usage 'Select at least one service'
+
+legacy_atlassian=0
+validate_env_files || exit 1
+
+selected_services=
+[ "$atlassian" -eq 0 ] || selected_services="$selected_services atlassian"
+[ "$aws" -eq 0 ] || selected_services="$selected_services aws"
+[ "$filesystem" -eq 0 ] || selected_services="$selected_services filesystem"
+
+result=0
+for service in $selected_services; do
+    case "$service" in
+        atlassian)
+            compose_file=compose.atlassian.yaml
+            compose_service=tunnel
+            env_file=.env.atlassian
+            [ "$legacy_atlassian" -eq 0 ] || env_file=.env
+            ;;
+        aws)
+            compose_file=compose.aws.yaml
+            compose_service='aws-tunnel'
+            env_file=.env.aws
+            ;;
+        filesystem)
+            compose_file=compose.filesystem.yaml
+            compose_service='filesystem-tunnel'
+            env_file=.env.filesystem
+            ;;
+    esac
+
+    if { [ "$service" = aws ] || [ "$service" = filesystem ]; } &&
+        { [ "$operation" = up ] || [ "$operation" = build ]; }; then
+        if ! (CDPATH='' cd -P "$repo_root" && docker build --tag chatgpt-mcp-tunnel:local .); then
+            result=1
+            continue
+        fi
+    fi
+
+    case "$operation" in
+        up)
+            if ! run_compose "$env_file" "$compose_file" up -d "$compose_service"; then
+                result=1
+            fi
+            ;;
+        down)
+            if ! run_compose "$env_file" "$compose_file" stop "$compose_service"; then
+                result=1
+            fi
+            if ! run_compose "$env_file" "$compose_file" rm --force "$compose_service"; then
+                result=1
+            fi
+            ;;
+        status)
+            if ! run_compose "$env_file" "$compose_file" ps "$compose_service"; then
+                result=1
+            fi
+            ;;
+        logs)
+            if ! run_compose "$env_file" "$compose_file" logs --tail=100 "$compose_service"; then
+                result=1
+            fi
+            ;;
+        build)
+            if ! run_compose "$env_file" "$compose_file" build "$compose_service"; then
+                result=1
+            fi
+            ;;
+    esac
+done
+
+exit "$result"

@@ -31,24 +31,37 @@ No host installation of Node.js, npm, or `tunnel-client` is required. Only Docke
 ```bash
 # Clone your own repository, then:
 cp .env.example .env
-chmod 600 .env
-${EDITOR:-vi} .env
+cp .env.atlassian.example .env.atlassian
+chmod 600 .env .env.atlassian
+${EDITOR:-vi} .env.atlassian
 
-# Build both utilities inside the image (host Node.js is not needed):
-docker compose build
+# Build the Atlassian image (host Node.js is not needed):
+scripts/mcp-tunnel build --atlassian
 
 # One-time OAuth: prints a URL to the terminal; open it on this Linux host.
 # Keep this command running while authenticating.
-docker compose --profile auth run --rm auth
+docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml \
+  --profile auth run --rm auth
 ```
 
 When the `mcp-remote-client` output says `Please authorize this client by visiting:`, copy the **entire URL** into a browser running **on the same Linux host**, then complete the Atlassian login/consent flow. OAuth returns to `http://localhost:38677/oauth/callback` (or your configured port). A prior Atlassian browser session can skip the login UI. Once the CLI reports that it connected and lists tools, the OAuth token is saved in the Docker named volume.
 
+For an existing installation whose Atlassian values are still in `.env`, do not
+overwrite that file. The runner temporarily supports it; to move to the new
+layout when `.env.atlassian` does not already exist:
+
+```bash
+mv .env .env.atlassian
+cp .env.example .env
+chmod 600 .env .env.atlassian
+```
+
 Then start the tunnel:
 
 ```bash
-docker compose up -d tunnel
-docker compose logs -f --no-log-prefix tunnel
+scripts/mcp-tunnel --atlassian
+scripts/mcp-tunnel logs --atlassian
 ```
 
 Check readiness in another terminal:
@@ -69,21 +82,24 @@ Try a read-only prompt: "Use Atlassian MCP Tunnel to list accessible Bitbucket w
 ## Day-to-day commands
 
 ```bash
-docker compose ps
-docker compose logs --tail=100 tunnel
-docker compose stop tunnel
-docker compose start tunnel
+scripts/mcp-tunnel status --atlassian
+scripts/mcp-tunnel logs --atlassian
+scripts/mcp-tunnel down --atlassian
+scripts/mcp-tunnel --atlassian
 # Re-run the OAuth diagnostic after stopping tunnel if auth expires:
-docker compose --profile auth run --rm auth
-# Stop and delete containers, but retain the OAuth named volume:
-docker compose down
+docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml \
+  --profile auth run --rm auth
 ```
+
+`scripts/mcp-tunnel down --atlassian` removes only the Atlassian runtime
+container and retains the OAuth named volume.
 
 If `mcp-remote` needs a **fresh sign-in**, stop the tunnel and use an intentionally new named Docker volume or delete the old volume deliberately. **`docker compose down -v` permanently deletes cached OAuth credentials** and must not be used casually.
 
 ## Security / constraints
 
-- The `.env` file is ignored by Git, but Compose environment variables can be inspected by Docker administrators. Do **not** commit `.env` or paste it into issue reports/logs. For a stronger secret-at-rest model, migrate the runtime key to a file-backed Docker secret and the official `--control-plane.api-key=file:...` flag.
+- The `.env` and `.env.<service>` files are ignored by Git, but Compose environment variables can be inspected by Docker administrators. Do **not** commit them or paste them into issue reports/logs. For a stronger secret-at-rest model, migrate the runtime key to a file-backed Docker secret and the official `--control-plane.api-key=file:...` flag.
 - OAuth refresh tokens and client registration state persist in the `oauth-data` Docker volume, **unencrypted by this project**; restrict host access and protect backups. The authentication and tunnel containers should **not** run concurrently during a new login to avoid callback port conflicts.
 - The image pins the **published** `tunnel-client` `v0.0.16` (downloaded with SHA-256 validation) and `mcp-remote` `0.14.3` for repeatability. This is version pinning, not digest- or lockfile-level reproducibility. Review dependencies before updating.
 - This is a connectivity integration, **not a read-only enforcement mechanism**. The Atlassian OAuth authorization URL can request broad scopes, including Jira write/delete/manage. A read-only prompt alone is not an authorization boundary. Review consent scopes, restrict upstream permissions and Tunnel access, and use an actual policy-enforcing MCP boundary if writes must be impossible. Never pass long-lived IAM access keys or other unrelated secrets through MCP arguments/results.
@@ -97,10 +113,10 @@ If `mcp-remote` needs a **fresh sign-in**, stop the tunnel and use an intentiona
 | No browser pops up | Expected in headless Docker: copy the authorization URL from `auth` output into the host browser. |
 | Browser callback fails / `connection refused` | Confirm this is **Linux** with host networking, and `38677` is unused. Check `http://localhost:<port>/oauth/callback` in the redirect. |
 | OAuth callback is blocked | Check the organization's Atlassian Rovo MCP domain/callback allowlist; a permitted localhost redirect is required. |
-| `tunnel-client` reports missing credentials | Check `.env`, the runtime API key, and the tunnel's OpenAI workspace permission. |
+| `tunnel-client` reports missing credentials | Check `.env.atlassian`, the runtime API key, and the tunnel's OpenAI workspace permission. |
 | Docker says `healthy` but Tunnel calls fail | Check `/health/control-plane` for `status`, `state`, `consecutive_failures`, and `last_success`. `/readyz` alone is not conclusive. |
 | `/health/mcp` reports `not_observed` | Expected before a real forwarded STDIO `initialize` / `tools/list`; test a read-only tool call through ChatGPT. |
-| `/healthz` works but no tools | Inspect `docker compose logs tunnel` and `/health/mcp`; check ChatGPT's Tunnel selection. |
+| `/healthz` works but no tools | Inspect `scripts/mcp-tunnel logs --atlassian` and `/health/mcp`; check ChatGPT's Tunnel selection. |
 | `poll transport failed (network_error)` with `x509: certificate signed by unknown authority` | Investigate the **container** CA trust store first; compare certificate issuers from the same network route. See [TLS trust troubleshooting](#tls-trust-troubleshooting). |
 | Docker build cannot download OpenAI release | Check access to GitHub Release assets and the matching `SHA256SUMS.txt` entry; never bypass checksum verification. |
 
@@ -115,8 +131,12 @@ One observed failure was an OpenAI control-plane poll in `backoff` while `/ready
 curl -sS -o /dev/null -w 'HTTP %{http_code}\n' https://api.openai.com/v1/models
 
 # Container CA presence and basic HTTPS check:
-docker compose exec -T tunnel sh -c 'test -s /etc/ssl/certs/ca-certificates.crt && echo "CA bundle present"'
-docker compose exec -T tunnel node -e 'fetch("https://api.openai.com/v1/models").then(r=>console.log(r.status)).catch(e=>{console.error(e.cause?.code||e.message);process.exit(1)})'
+docker compose --env-file .env --env-file .env.atlassian -f compose.atlassian.yaml \
+  exec -T tunnel \
+  sh -c 'test -s /etc/ssl/certs/ca-certificates.crt && echo "CA bundle present"'
+docker compose --env-file .env --env-file .env.atlassian -f compose.atlassian.yaml \
+  exec -T tunnel node -e \
+  'fetch("https://api.openai.com/v1/models").then(r=>console.log(r.status)).catch(e=>{console.error(e.cause?.code||e.message);process.exit(1)})'
 
 # Health: do not infer poll success merely from /readyz = 200.
 curl -fsS http://127.0.0.1:18080/health/control-plane | python3 -m json.tool
@@ -126,11 +146,12 @@ The Dockerfile installs the Debian `ca-certificates` package explicitly into the
 
 ```bash
 cp compose.override.example.yaml compose.override.yaml
-docker compose config --quiet
-docker compose up -d --force-recreate tunnel
+docker compose --env-file .env --env-file .env.atlassian \
+  -f compose.atlassian.yaml -f compose.override.yaml config --quiet
+scripts/mcp-tunnel --atlassian
 ```
 
-This mounts the host bundle read-only and sets `SSL_CERT_FILE` for Go's `tunnel-client` and `NODE_EXTRA_CA_CERTS` for Node's `mcp-remote`. The override applies to both `tunnel` and `auth`. Check that your host CA store is trustworthy; **do not disable TLS verification**. This example is unsuitable for hosts whose trust bundle is at a different path; customize the file locally. `compose.override.yaml` is intentionally ignored by Git and Docker build context.
+This mounts the host bundle read-only and sets `SSL_CERT_FILE` for Go's `tunnel-client` and `NODE_EXTRA_CA_CERTS` for Node's `mcp-remote`. The runner automatically includes the local override for the Atlassian tunnel; when running the `auth` helper manually, add `-f compose.override.yaml` to its Compose command as well. Check that your host CA store is trustworthy; **do not disable TLS verification**. This example is unsuitable for hosts whose trust bundle is at a different path; customize the file locally. `compose.override.yaml` is intentionally ignored by Git and Docker build context.
 
 If the issue remains, inspect proxy environment configuration, certificate chain, DNS, and the actual TLS issuer seen **inside** the container before changing trust roots. The exact way CA trust was corrected on the first verified workstation was not recorded; this override is a documented remediation option, not a claim about the specific past action.
 
@@ -143,7 +164,7 @@ Tunnel ID and an independent credential cache volume. It also defaults to
 `--read-only`, with AWS IAM as the actual authorization boundary.
 
 See **[AWS setup and security walkthrough](README-AWS.md)**.
-Do not use the Atlassian `.env` for the AWS service.
+Keep AWS credentials in `.env.aws`; do not reuse `.env.atlassian` or its Tunnel ID/API key.
 
 ## Optional read-only Filesystem MCP Tunnel
 
@@ -153,17 +174,15 @@ read-only bind mount; filesystem write tools cannot modify the mounted host
 directory.
 
 ```bash
+test -f .env || cp .env.example .env
 cp .env.filesystem.example .env.filesystem
-chmod 600 .env.filesystem
+chmod 600 .env .env.filesystem
 ${EDITOR:-vi} .env.filesystem
 
-# Build the existing tunnel-client image first; the filesystem image reuses it.
-docker build -t chatgpt-mcp-tunnel:local .
-docker compose -f compose.filesystem.yaml --env-file .env.filesystem build
-docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
-  --env-file .env.filesystem up -d
-docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
-  --env-file .env.filesystem ps
+# The command builds the shared base image and the Filesystem image.
+scripts/mcp-tunnel build --filesystem
+scripts/mcp-tunnel --filesystem
+scripts/mcp-tunnel status --filesystem
 ```
 
 Set `FILESYSTEM_HOST_PATH` to an absolute path for a directory you intend to
@@ -181,11 +200,10 @@ The official server advertises write-capable tools, but the read-only container
 mount is the enforcement boundary. Stop it with:
 
 ```bash
-docker compose -p chatgpt-filesystem -f compose.filesystem.yaml \
-  --env-file .env.filesystem down
+scripts/mcp-tunnel down --filesystem
 ```
 
-Do not use the Atlassian `.env` or `.env.aws` for this service.
+Keep Filesystem credentials in `.env.filesystem`; do not put them in other services' env files.
 
 ## Upstream references
 
