@@ -38,14 +38,12 @@ ${EDITOR:-vi} .env.atlassian
 # Build the Atlassian image (host Node.js is not needed):
 scripts/mcp-tunnel build --atlassian
 
-# One-time OAuth: prints a URL to the terminal; open it on this Linux host.
-# Keep this command running while authenticating.
-docker compose --env-file .env --env-file .env.atlassian \
-  -f compose.atlassian.yaml \
-  --profile auth run --rm auth
+# Clear any cached OAuth login, authenticate, then start the tunnel.
+# Open the printed URL in a browser on this Linux host.
+scripts/mcp-tunnel reauth --atlassian
 ```
 
-When the `mcp-remote-client` output says `Please authorize this client by visiting:`, copy the **entire URL** into a browser running **on the same Linux host**, then complete the Atlassian login/consent flow. OAuth returns to `http://localhost:38677/oauth/callback` (or your configured port). A prior Atlassian browser session can skip the login UI. Once the CLI reports that it connected and lists tools, the OAuth token is saved in the Docker named volume.
+When the `mcp-remote-client` output says `Please authorize this client by visiting:`, copy the **entire URL** into a browser running **on the same Linux host**, then complete the Atlassian login/consent flow. OAuth returns to `http://localhost:38677/oauth/callback` (or your configured port). A prior Atlassian browser session can skip the login UI. Once the CLI reports that it connected and lists tools, the OAuth token is saved in the Docker named volume. Select an Atlassian account with the required access; reauthentication does not change that account's Jira or Confluence permissions.
 
 For an existing installation whose Atlassian values are still in `.env`, do not
 overwrite that file. The runner temporarily supports it; to move to the new
@@ -57,7 +55,7 @@ cp .env.example .env
 chmod 600 .env .env.atlassian
 ```
 
-Then start the tunnel:
+The reauthentication command starts the tunnel after login succeeds. Check it with:
 
 ```bash
 scripts/mcp-tunnel --atlassian
@@ -86,16 +84,14 @@ scripts/mcp-tunnel status --atlassian
 scripts/mcp-tunnel logs --atlassian
 scripts/mcp-tunnel down --atlassian
 scripts/mcp-tunnel --atlassian
-# Re-run the OAuth diagnostic after stopping tunnel if auth expires:
-docker compose --env-file .env --env-file .env.atlassian \
-  -f compose.atlassian.yaml \
-  --profile auth run --rm auth
+# Clear the cached OAuth login, reauthenticate, then restart the tunnel:
+scripts/mcp-tunnel reauth --atlassian
 ```
 
 `scripts/mcp-tunnel down --atlassian` removes only the Atlassian runtime
 container and retains the OAuth named volume.
 
-If `mcp-remote` needs a **fresh sign-in**, stop the tunnel and use an intentionally new named Docker volume or delete the old volume deliberately. **`docker compose down -v` permanently deletes cached OAuth credentials** and must not be used casually.
+`scripts/mcp-tunnel reauth --atlassian` intentionally deletes the cached Atlassian OAuth state, runs the auth helper, and restarts the tunnel only after authentication succeeds. It refuses to proceed if the local Compose config contains extra volumes or networks. Avoid `docker compose down -v` for routine shutdowns; it can delete cached OAuth credentials.
 
 ## Security / constraints
 

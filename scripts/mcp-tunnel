@@ -6,7 +6,7 @@ usage() {
 Usage: scripts/mcp-tunnel [up] (--atlassian | --aws | --filesystem | --all)...
        scripts/mcp-tunnel --help
 
-Operations: up (default), down, status, logs, build
+Operations: up (default), down, status, logs, build, reauth
 Services:   --atlassian, --aws, --filesystem, --all
 EOF
 }
@@ -104,7 +104,7 @@ all=0
 
 if [ "$#" -gt 0 ]; then
     case "$1" in
-        up|down|status|logs|build)
+        up|down|status|logs|build|reauth)
             operation=$1
             shift
             ;;
@@ -148,6 +148,8 @@ if [ "$all" -eq 1 ]; then
 fi
 
 [ "$((atlassian + aws + filesystem))" -gt 0 ] || fail_usage 'Select at least one service'
+[ "$operation" != reauth ] || [ "$atlassian$aws$filesystem" = 100 ] ||
+    fail_usage 'reauth is only supported with --atlassian'
 
 legacy_atlassian=0
 validate_env_files || exit 1
@@ -212,6 +214,49 @@ for service in $selected_services; do
             ;;
         build)
             if ! run_compose "$env_file" "$compose_file" build "$compose_service"; then
+                result=1
+            fi
+            ;;
+        reauth)
+            if ! volume_names=$(run_compose "$env_file" "$compose_file" config --volumes); then
+                result=1
+                continue
+            fi
+            if [ "$volume_names" != oauth-data ]; then
+                printf '%s\n' 'Refusing to reset OAuth data: Atlassian Compose must declare only the oauth-data volume.' >&2
+                result=1
+                continue
+            fi
+
+            if ! network_names=$(run_compose "$env_file" "$compose_file" config --networks); then
+                result=1
+                continue
+            fi
+            if [ -n "$network_names" ]; then
+                printf '%s\n' 'Refusing to reset OAuth data: Atlassian Compose must not declare networks.' >&2
+                result=1
+                continue
+            fi
+
+            if ! service_names=$(run_compose "$env_file" "$compose_file" config --services); then
+                result=1
+                continue
+            fi
+            if [ "$service_names" != "$compose_service" ]; then
+                printf '%s\n' 'Refusing to reset OAuth data: Atlassian Compose must define only the tunnel service by default.' >&2
+                result=1
+                continue
+            fi
+
+            if ! run_compose "$env_file" "$compose_file" down --volumes; then
+                result=1
+                continue
+            fi
+            if ! run_compose "$env_file" "$compose_file" --profile auth run --rm auth; then
+                result=1
+                continue
+            fi
+            if ! run_compose "$env_file" "$compose_file" up -d "$compose_service"; then
                 result=1
             fi
             ;;
